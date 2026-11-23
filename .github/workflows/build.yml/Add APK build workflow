@@ -7,6 +7,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,12 +22,12 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.9
+          gradle-version: '8.9'
 
       - name: Extract project
         run: unzip -q car-screens-main.zip -d extracted
@@ -38,3 +41,4 @@ jobs:
         with:
           name: Ameer-Screens-APK
           path: extracted/car-screens-main/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
