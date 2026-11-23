@@ -29,8 +29,8 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Extract fixed project
-        run: unzip -q car-screens-main-fixed.zip -d extracted
+      - name: Extract new project
+        run: unzip -q ameer-screens-android-auto-ui-update.zip -d extracted
 
       - name: Enable AndroidX
         working-directory: extracted/car-screens-main
