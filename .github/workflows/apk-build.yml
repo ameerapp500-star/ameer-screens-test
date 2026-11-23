@@ -46,6 +46,35 @@ jobs:
             echo 'android.enableJetifier=true' >> gradle.properties
           fi
 
+      - name: Fix Car App Service
+        working-directory: extracted/car-screens-main
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("app/src/main/java/com/carscreens/app/MapsCarAppService.java")
+          s = p.read_text()
+
+          if "createHostValidator(" not in s:
+              package_end = s.find("\n")
+              s = s[:package_end+1] + "\nimport androidx.car.app.validation.HostValidator;\n" + s[package_end+1:]
+              pos = s.rfind("}")
+              if pos < 0:
+                  raise SystemExit("Class closing brace not found")
+              method = """
+              @Override
+              public HostValidator createHostValidator() {
+                  return HostValidator.ALLOW_ALL_HOSTS_VALIDATOR;
+              }
+          """
+              s = s[:pos] + method + "\n" + s[pos:]
+
+              p.write_text(s)
+              print("CarAppService fixed")
+          else:
+              print("Host validator already exists")
+          PY
+
       - name: Build APK
         working-directory: extracted/car-screens-main
         run: gradle :app:assembleDebug
