@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ameer Screens</title>
+<style>
+:root{--g1:#1e4fa0;--g2:#0a1d45;--a:#38bdf8}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%}
+body{font-family:system-ui,'Segoe UI',Tahoma,sans-serif;color:#fff;background:linear-gradient(135deg,var(--g1),var(--g2)) fixed;overflow-x:hidden}
+.top{display:flex;align-items:center;gap:10px;padding:14px 18px}
+.top h1{margin:0;font-size:21px;display:flex;align-items:center;gap:8px;flex:1}
+.pill{background:rgba(10,25,80,.75);border:2px solid rgba(255,255,255,.35);border-radius:30px;padding:8px 16px;font-size:17px;white-space:nowrap}
+.btn{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:14px;padding:13px 18px;font-size:17px;cursor:pointer;font-family:inherit}
+.btn.p{background:var(--a);color:#05233a;font-weight:700;border-color:var(--a)}
+.ib{width:46px;height:46px;padding:0;display:flex;align-items:center;justify-content:center}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:6px 18px 30px}@media(orientation:portrait){.grid{grid-template-columns:repeat(2,1fr)}}
+.tile{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.28);border-radius:18px;height:118px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;font-size:15px;cursor:pointer;text-align:center;padding:4px;box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+.tile:active{transform:scale(.96);background:rgba(255,255,255,.2)}
+.tile svg{width:46px;height:46px}
+#clock{background:none;border:0;font-size:20px;padding:0}
+.bar{background:#0b0b0b;border-bottom:1px solid #2a2a2a;margin-bottom:12px;padding:8px 14px}
+#wx{background:rgba(10,20,50,.55);border:1px solid rgba(255,255,255,.2);font-size:15px}
+.scr{display:none;padding:0 18px 30px}.scr.on{display:block}
+small{display:block;opacity:.8;font-size:13px}
+input,textarea{width:100%;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:14px;padding:14px;font-size:17px;margin:6px 0;font-family:inherit}
+video,audio{width:100%;border-radius:14px;background:#000;margin:8px 0}
+iframe{width:100%;height:65vh;border:0;border-radius:14px;background:#000}
+.list{display:flex;flex-direction:column;gap:9px;margin-top:10px}
+.item{background:rgba(255,255,255,.12);border-radius:14px;padding:16px;font-size:17px;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
+.ph{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+.ph img{width:100%;height:110px;object-fit:cover;border-radius:12px;cursor:pointer}
+.lock{position:fixed;inset:0;z-index:9;background:linear-gradient(135deg,var(--g1),var(--g2));display:flex;align-items:center;justify-content:center;padding:20px}
+.card{width:100%;max-width:440px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.3);border-radius:28px;padding:30px 22px;text-align:center;backdrop-filter:blur(8px)}
+.card .lg{width:84px;height:84px;margin:0 auto 14px;border-radius:50%;background:rgba(10,25,80,.7);border:3px solid var(--a);display:flex;align-items:center;justify-content:center;font-size:40px}
+.card h2{margin:6px 0}.card p{opacity:.8;margin:4px 0 14px;font-size:15px}
+#code{direction:ltr;text-align:center;font-size:22px;letter-spacing:2px;padding:16px}
+.cnt{font-size:14px;opacity:.8;direction:ltr}.err{color:#ffb4b4;min-height:24px;margin:6px 0}
+.sw{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}.sw b{width:46px;height:46px;border-radius:50%;cursor:pointer;border:3px solid #fff6}
+h3{margin:18px 0 4px}
+
+/* Reference-inspired AA Car Play dashboard skin */
+:root{--g1:#16485a;--g2:#102f3c;--a:#38bdf8}
+html,body{width:100%;min-height:100%;background:#123d4b}
+body{min-height:100vh;background:radial-gradient(ellipse at 50% 0%,#286174 0%,#174453 48%,#0d2d39 100%) fixed;color:#f4f8fb;overflow-x:hidden}
+#home{min-height:100vh;display:flex;flex-direction:column}
+.top{min-height:66px;display:flex;align-items:center;gap:12px;padding:10px 22px;background:transparent}
+.top h1{font-size:21px;font-weight:800;letter-spacing:.2px;gap:9px;color:#f6fbff}
+#logo{font-size:27px;filter:drop-shadow(0 2px 3px #071c27)}
+#clock{font-size:17px;color:#f6fbff;white-space:nowrap}
+.pill{background:rgba(17,35,55,.72);border:1px solid rgba(255,255,255,.17);border-radius:28px;padding:7px 13px;font-size:14px;color:#e9f4fb}
+#wx{background:rgba(13,31,47,.72);border-color:rgba(255,255,255,.16)}
+.btn{background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:12px;padding:11px 15px}
+.btn.p{background:#168ac2;color:#fff;border-color:#168ac2}
+.btn.ib{width:42px;height:42px;border-radius:12px}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;padding:8px 22px 26px;align-content:start;overflow-y:auto}
+.tile{height:126px;border-radius:19px;gap:8px;font-size:15px;font-weight:600;background:linear-gradient(145deg,rgba(69,129,151,.46),rgba(24,65,82,.72));border:1px solid rgba(132,193,211,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 5px 14px rgba(0,0,0,.12);transition:transform .12s,background .12s}
+.tile:nth-child(4n+1){background:linear-gradient(145deg,rgba(100,80,155,.42),rgba(37,48,88,.78));border-color:rgba(151,127,221,.35)}
+.tile:nth-child(4n+2){background:linear-gradient(145deg,rgba(56,132,109,.38),rgba(29,69,81,.78));border-color:rgba(102,199,158,.3)}
+.tile:nth-child(4n+3){background:linear-gradient(145deg,rgba(43,120,150,.43),rgba(28,67,89,.8));border-color:rgba(88,179,220,.32)}
+.tile:nth-child(4n){background:linear-gradient(145deg,rgba(150,65,84,.38),rgba(65,39,67,.8));border-color:rgba(211,105,135,.3)}
+.tile:active{transform:scale(.975);background:rgba(255,255,255,.2)}
+.tile svg{width:52px;height:52px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.16))}
+#app{min-height:100vh;background:radial-gradient(ellipse at 50% 0%,#286174 0%,#174453 48%,#0d2d39 100%)}
+.top.bar{height:54px;min-height:54px;padding:5px 16px;background:#090b0e;border-bottom:1px solid #242b31;margin:0 0 10px}
+.top.bar h1{font-size:17px;font-weight:700}
+.scr{padding:0 20px 24px;min-height:calc(100vh - 64px)}
+input,textarea{background:rgba(11,28,50,.9);border:1px solid rgba(130,181,208,.25);border-radius:11px;color:#fff}
+.item{background:rgba(16,35,65,.92);border:1px solid rgba(110,155,188,.16);border-radius:12px;padding:15px 16px;color:#f4f7fc}
+.item:active{background:#244c71}
+video,audio{background:#000;border-radius:14px}
+.lock{background:radial-gradient(ellipse at 50% 0%,#286174 0%,#174453 48%,#0d2d39 100%)}
+.card{background:rgba(12,31,47,.88);border:1px solid rgba(139,205,222,.3)}
+@media(max-width:700px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));padding:8px 12px}.top{padding:8px 12px;gap:6px}.top h1{font-size:16px}.tile{height:110px}}
+
+</style></head><body>
+
+<div class="lock" id="lock"><div class="card">
+  <div class="lg" id="lockIcon">🔐</div>
+  <h2>تفعيل التطبيق</h2>
+  <p style="margin-bottom:6px">معرّف جهازك (اضغط للنسخ وأرسله لصاحب التطبيق):</p><div id="did" onclick="A.copy(DID)" style="direction:ltr;background:rgba(0,0,0,.3);border-radius:12px;padding:12px;font-size:17px;letter-spacing:1px;margin-bottom:12px"></div><p>ثم اكتب كود التفعيل المكوّن من ٢٠ رقم</p>
+  <input id="code" inputmode="numeric" maxlength="24" placeholder="0000 0000 0000 0000 0000">
+  <div class="cnt" id="cnt">0 / 20</div>
+  <div class="err" id="err"></div>
+  <button class="btn p" style="width:100%" onclick="activate()">تفعيل</button>
+</div></div>
+
+<div id="home">
+  <div class="top">
+    <span class="btn ib" onclick="show('mic','الصوت')" style="font-size:24px">🎙️</span>
+    <h1 id="title"><span id="tt">أمير للشاشات</span><span id="logo">🚘</span></h1>
+    <span class="pill" id="wx">--</span>
+    <span class="pill" id="clock"></span>
+    <button class="btn ib" onclick="show('set','الإعدادات')">✏️</button>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="top bar"><button class="btn ib" onclick="home()">↩</button><h1 id="st" style="flex:1"></h1><button class="btn ib" onclick="home()">▦</button></div>
+
+  <div class="scr" id="yt">
+    <button class="btn p" style="width:100%;font-size:20px;padding:18px" onclick="A.openWeb('https://m.youtube.com')">▶️ فتح يوتيوب</button>
+    <h3>أو الصق رابط فيديو للمشاهدة</h3>
+    <input id="ytu" placeholder="رابط يوتيوب" dir="ltr">
+    <button class="btn p" onclick="ytGo()">تشغيل</button>
+  </div>
+
+  <div class="scr" id="web">
+    <button class="btn p" style="width:100%;font-size:20px;padding:18px" onclick="A.openWeb('https://www.google.com')">🌐 فتح جوجل</button>
+    <input id="wu" placeholder="اكتب رابط أو بحث" dir="ltr" style="margin-top:12px">
+    <button class="btn p" onclick="webGo()">فتح</button>
+    <button class="btn" onclick="addBm()">⭐ حفظ الرابط</button>
+    <div class="list" id="bm"></div>
+  </div>
+
+  <div class="scr" id="tv">
+    <input id="m3url" placeholder="رابط قائمة m3u" dir="ltr">
+    <button class="btn p" onclick="addUrl()">إضافة من رابط</button>
+    <textarea id="m3u" rows="3" dir="ltr" placeholder="أو الصق محتوى القائمة هنا"></textarea>
+    <input id="m3f" type="file" style="display:none">
+    <button class="btn p" onclick="addM3u()">إضافة النص</button>
+    <button class="btn" onclick="m3f.click()">اختيار ملف m3u</button>
+    <div class="grid" style="grid-template-columns:repeat(2,1fr);padding:0;margin:10px 0"><div class="tile" id="tvLive" style="height:84px" onclick="tvMode='live';renderTV()"></div><div class="tile" id="tvFav" style="height:84px" onclick="tvMode='fav';renderTV()"></div></div>
+    <video id="tvp" controls playsinline></video>
+    <div class="list" id="chs"></div>
+  </div>
+
+  <div class="scr" id="radio">
+    <input id="rs" placeholder="بحث عن دولة" oninput="radioFilter()">
+    <audio id="rp" controls></audio>
+    <div class="list" id="rl"></div>
+    <div class="grid" id="rc" style="grid-template-columns:repeat(3,1fr);padding:0"></div>
+  </div>
+
+  <div class="scr" id="media">
+    <div id="mv"></div><div class="list" id="ml"></div><div class="ph" id="mp"></div>
+  </div>
+
+  <div class="scr" id="files">
+    <button class="btn p" onclick="A.pickFolder()">📁 إضافة مجلد</button>
+    <div id="fv"></div><div class="list" id="fl"></div>
+  </div>
+
+  <div class="scr" id="links"><div class="list" id="ll"></div></div>
+
+  <div class="scr" id="apps">
+    <div id="mapsweb" style="display:none"><button class="btn p" style="width:100%;padding:16px" onclick="A.openWeb('https://www.google.com/maps')">🗺️ خرائط جوجل داخل التطبيق</button></div>
+    <button class="btn p" onclick="pickApp()" style="margin-top:8px">➕ إضافة تطبيق من الهاتف</button>
+    <div class="list" id="al"></div>
+    <div class="list" id="ap2"></div>
+  </div>
+
+  <div class="scr" id="mic"><p>الأوامر الصوتية غير مدعومة بهذا الإصدار.</p></div>
+
+  <div class="scr" id="set">
+    <h3>لون الواجهة</h3><div class="sw" id="sw"></div>
+    <h3>اسم التطبيق</h3><input id="nm" placeholder="الاسم">
+    <h3>أيقونة بجانب الاسم (إيموجي)</h3><input id="ico" maxlength="4" placeholder="🚙">
+    <h3>مدينة الطقس</h3><input id="city" placeholder="مثل: كربلاء">
+    <button class="btn p" onclick="saveSet()">حفظ</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.15/hls.min.js"></script>
+<script>
+
+const $=id=>document.getElementById(id);
+const HASHES=['07fe585b2ca28557adf412b5536490d29258f434f3a61a3a782f134d66f4d117','a5e599a970c3bdd44d2fa221234f84364bd2acc3d2c5f763bce13c471fbafd91','700d5bf6fbd9446cd0011dc1bc006404ee2a0808e440d1f47386d91248c5e1cc','5ad370128995e65306f34a8fa4d090e92baf5a2e19a36c68c5f074fa048a3325','ae44a74beca28d5368094e1215c2c3106610ddcb3397dfa81b9d3a1e707733d0'];
+const SECRET='4de7617ef64a37e1886010ab';
+const DID=(()=>{try{return window.Android.deviceId()}catch(e){return 'TEST'}})();
+async function valid(c){const k=await sha(SECRET+':'+DID.toUpperCase());return (BigInt('0x'+k)%(10n**20n)).toString().padStart(20,'0')===c}
+function sha(s){return crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)).then(b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join(''))}
+const S=(k,v)=>{try{if(v===undefined)return JSON.parse(localStorage.getItem(k));localStorage.setItem(k,JSON.stringify(v))}catch(e){return null}};
+const I=(b)=>`<svg viewBox="0 0 48 48">${b}</svg>`;
+const TILES=[
+['yt','يوتيوب','#ef5350',I('<circle cx="24" cy="24" r="22" fill="#f44336"/><path d="M19 14v20l17-10z" fill="#fff"/>')],
+['web','متصفح الويب','#26a69a',I('<circle cx="24" cy="24" r="22" fill="#26a69a"/><path d="M12 20c4-8 12-8 14-4s-6 6-4 10-8 8-10 2z" fill="#0d5c55"/><circle cx="34" cy="30" r="5" fill="#0d5c55"/>')],
+['tv','تلفزيون','#66bb6a',I('<rect x="6" y="14" width="36" height="26" rx="3" fill="none" stroke="#66bb6a" stroke-width="4"/><path d="M16 14l8-9 8 9" fill="none" stroke="#66bb6a" stroke-width="3"/><path d="M20 21v12l11-6z" fill="#66bb6a"/>')],
+['movies','الأفلام والمسلسلات','#7e57c2',I('<rect x="8" y="16" width="32" height="24" rx="2" fill="#7e57c2"/><rect x="8" y="8" width="32" height="8" fill="#a98ee0"/><path d="M21 22v12l10-6z" fill="#fff"/>')],
+['files','مدير الملفات','#ffa726',I('<path d="M4 12h14l4 5h22v23H4z" fill="#ffa726"/><path d="M4 12h14l4 5H4z" fill="#fb8c00"/>')],
+['video','مشغل الفيديو','#ab47bc',I('<rect x="5" y="14" width="28" height="20" rx="4" fill="#ab47bc"/><path d="M36 20l8-5v18l-8-5z" fill="#ab47bc"/>')],
+['photos','معرض الصور','#42a5f5',I('<rect x="6" y="8" width="36" height="32" rx="3" fill="#42a5f5"/><path d="M8 38l11-14 8 9 5-6 8 11z" fill="#fff"/><circle cx="33" cy="17" r="3.5" fill="#fff"/>')],
+['radio','الراديو','#ff7043',I('<rect x="6" y="14" width="36" height="26" rx="5" fill="#ff7043"/><circle cx="17" cy="28" r="5" fill="#fff"/><path d="M26 24h12M26 30h12" stroke="#fff" stroke-width="3"/><path d="M12 14L30 5" stroke="#ff7043" stroke-width="3"/>')],
+['music','الموسيقى','#ec407a',I('<path d="M20 8h20v22a6 6 0 1 1-4-5.6V16H24v18a6 6 0 1 1-4-5.6z" fill="#ec407a"/>')],
+['news','الأخبار','#fdd835',I('<rect x="6" y="8" width="36" height="32" rx="3" fill="#fdd835"/><path d="M12 16h24M12 22h24M12 28h14" stroke="#6d4c41" stroke-width="3"/>')],
+['kids','يوتيوب كدز','#26c6da',I('<circle cx="24" cy="24" r="22" fill="#26c6da"/><circle cx="17" cy="21" r="3" fill="#fff"/><circle cx="31" cy="21" r="3" fill="#fff"/><path d="M15 30q9 8 18 0" stroke="#fff" stroke-width="3" fill="none"/>')],
+['maps','الخرائط','#2ecc9a',I('<path d="M24 4a14 14 0 0 0-14 14c0 10 14 26 14 26s14-16 14-26A14 14 0 0 0 24 4z" fill="#26a69a"/><circle cx="24" cy="18" r="5" fill="#fff"/>')],
+['apps','تطبيقاتي','#4dd0e1',I('<rect x="5" y="5" width="16" height="16" rx="4" fill="#4dd0e1"/><rect x="27" y="5" width="16" height="16" rx="4" fill="#81c784"/><rect x="5" y="27" width="16" height="16" rx="4" fill="#ffb74d"/><rect x="27" y="27" width="16" height="16" rx="4" fill="#f06292"/>')],
+['mirror','انعكاس الشاشة','#7986cb',I('<rect x="14" y="4" width="20" height="36" rx="4" fill="none" stroke="#7986cb" stroke-width="4"/><path d="M5 18v12M43 18v12" stroke="#7986cb" stroke-width="4"/>')],
+['set','الإعدادات','#b0bec5',I('<circle cx="24" cy="24" r="8" fill="none" stroke="#b0bec5" stroke-width="5"/><path d="M24 4v8M24 36v8M4 24h8M36 24h8M10 10l6 6M32 32l6 6M38 10l-6 6M16 32l-6 6" stroke="#b0bec5" stroke-width="4"/>')]];
+
+const A=window.Android||{openWeb:u=>window.open(u),openApp(){},listApps:()=>'[]',pickFolder(){},folders:()=>'[]',removeFolder(){},listDir:()=>'[]',listMedia:()=>'[]',view(){},playVideo(){},copy(){},deviceId:()=>'TEST'};
+const LINKS={news:[['الجزيرة','https://www.aljazeera.net'],['BBC عربي','https://www.bbc.com/arabic'],['سكاي نيوز عربية','https://www.skynewsarabia.com']],
+mirror:[['فتح إعدادات الإرسال في الجهاز','intent:#Intent;action=android.settings.CAST_SETTINGS;end']]};
+const PAL=[['#1e4fa0','#0a1d45'],['#2c6e83','#1b3550'],['#4a2a7a','#1b1035'],['#2e7d5b','#12352d'],['#7a2a3a','#2a1020']];
+const FU=u=>'https://localfile.invalid/?u='+encodeURIComponent(u);
+let cur='',appKey='maps',tvMode='live';
+$('code').oninput=e=>{let v=e.target.value.replace(/\D/g,'').slice(0,20);e.target.value=v.replace(/(.{4})/g,'$1 ').trim();$('cnt').textContent=v.length+' / 20'};
+async function activate(){
+  const c=$('code').value.replace(/\D/g,'');
+  if(c.length!==20){$('err').textContent='الكود لازم يكون ٢٠ رقم';return}
+  let ok=false;try{ok=await valid(c)}catch(e){}
+  if(ok){S('act',c);$('lock').style.display='none';init()}else $('err').textContent='كود غير صحيح'
+}
+function init(){
+  $('grid').innerHTML='';
+  const tileOrder=['movies','tv','web','yt','radio','photos','video','files','news','music','kids','apps','mirror','set'];
+  TILES.slice().sort((a,b)=>tileOrder.indexOf(a[0])-tileOrder.indexOf(b[0])).forEach(t=>{const d=document.createElement('div');d.className='tile';d.innerHTML=t[3]+t[1];d.onclick=()=>openT(t);$('grid').appendChild(d)});
+  $('sw').innerHTML='';PAL.forEach(p=>{const b=document.createElement('b');b.style.background=`linear-gradient(135deg,${p[0]},${p[1]})`;b.onclick=()=>{const c=S('cfg')||{};c.pal=p;S('cfg',c);applyCfg(c)};$('sw').appendChild(b)});
+  applyCfg(S('cfg')||{});tick();setInterval(tick,30000);weather();renderTV();renderBm()
+}
+function applyCfg(c){
+  if(c.pal){document.documentElement.style.setProperty('--g1',c.pal[0]);document.documentElement.style.setProperty('--g2',c.pal[1])}
+  if(c.ico){$('logo').textContent=c.ico;$('ico').value=c.ico}
+  if(c.nm){$('tt').textContent=c.nm;$('nm').value=c.nm}
+  if(c.city)$('city').value=c.city
+}
+async function saveSet(){
+  const c=S('cfg')||{};c.ico=$('ico').value||c.ico;c.nm=$('nm').value||c.nm;
+  const ct=$('city').value.trim();
+  if(ct&&ct!==c.city){try{const r=await(await fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&language=ar&name='+encodeURIComponent(ct))).json();if(r.results&&r.results[0]){c.city=ct;c.lat=r.results[0].latitude;c.lon=r.results[0].longitude}else alert('المدينة غير موجودة')}catch(e){alert('تعذّر البحث عن المدينة')}}
+  S('cfg',c);applyCfg(c);weather();home()
+}
+async function weather(){
+  const c=S('cfg')||{};const lat=c.lat||31.99,lon=c.lon||44.92,name=c.city||'الديوانية';
+  try{const r=await(await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m`)).json();$('wx').textContent='☀️ '+Math.round(r.current.temperature_2m)+'°C  '+name}catch(e){$('wx').textContent=name}
+}
+function tick(){$('clock').textContent=new Date().toLocaleTimeString('ar-IQ',{hour:'numeric',minute:'2-digit'})}
+function show(id,t){$('home').style.display='none';$('app').style.display='block';document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');$('st').textContent=t||''}
+function home(){$('app').style.display='none';$('home').style.display='block';document.querySelectorAll('video,audio').forEach(m=>m.pause());$('mv').innerHTML='';$('fv').innerHTML=''}
+function it(box,txt,fn,extra){const d=document.createElement('div');d.className='item';const s=document.createElement('span');s.textContent=txt;s.style.flex=1;s.onclick=fn;d.appendChild(s);if(extra)d.appendChild(extra);box.appendChild(d);return d}
+function xb(fn){const x=document.createElement('span');x.textContent='✖';x.onclick=fn;return x}
+function openT(t){
+  const k=t[0];cur=k;
+  if(k==='kids'){A.openWeb('https://www.youtubekids.com');return}
+  if(['yt','web','tv','set'].includes(k)){show(k,t[1]);if(k==='tv')renderTV();return}
+  if(k==='radio'){show('radio',t[1]);radioCountries();return}
+  if(k==='files'){show('files',t[1]);fshow();return}
+  if(k==='maps'||k==='apps'){appKey=k;show('apps',t[1]);$('mapsweb').style.display=k==='maps'?'block':'none';renderApps();return}
+  if(LINKS[k]){show('links',t[1]);$('ll').innerHTML='';LINKS[k].forEach(l=>it($('ll'),l[0],()=>{k==='news'?A.openWeb(l[1]):location.href=l[1]}));return}
+  show('media',t[1]);loadMedia()
+}
+function ytGo(){
+  let u=$('ytu').value.trim();const m=u.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]{11})/)||(u.length===11?[0,u]:null);
+  if(!m){alert('رابط غير صحيح');return}
+  A.openWeb('https://m.youtube.com/watch?v='+m[1])
+}
+function webGo(){const u=$('wu').value.trim();if(!u)return;A.openWeb(/^https?:/.test(u)?u:/^[^ ]+\.[^ ]+$/.test(u)?'https://'+u:'https://www.google.com/search?q='+encodeURIComponent(u))}
+function addBm(){const u=$('wu').value.trim();if(!u)return;S('bm',(S('bm')||[]).concat(/^https?:/.test(u)?u:'https://'+u));renderBm()}
+function renderBm(){const a=S('bm')||[];$('bm').innerHTML='';a.forEach((u,i)=>it($('bm'),u,()=>A.openWeb(u),xb(()=>{a.splice(i,1);S('bm',a);renderBm()})))}
+// TV
+function playUrl(u,id){const v=$(id);u=u.trim();if(!u)return;if(window.Hls&&Hls.isSupported()&&/\.m3u8/.test(u)){const h=new Hls();h.loadSource(u);h.attachMedia(v)}else v.src=u;v.play().catch(()=>{})}
+function parseM3u(t){const out=[];let n='';t.split(/\r?\n/).forEach(l=>{l=l.trim();if(l.startsWith('#EXTINF'))n=l.split(',').pop();else if(l&&!l.startsWith('#')){out.push({n:n||l,u:l});n=''}});return out}
+function addList(l){if(!l.length){alert('ما لقيت قنوات');return}S('ch',(S('ch')||[]).concat(l));renderTV()}
+function addM3u(){addList(parseM3u($('m3u').value));$('m3u').value=''}
+async function addUrl(){try{const t=await(await fetch($('m3url').value.trim())).text();addList(parseM3u(t));$('m3url').value=''}catch(e){alert('تعذّر تحميل الرابط. الصق محتوى القائمة بدلاً منه.')}}
+$('m3f').onchange=async e=>{const f=e.target.files[0];if(f)addList(parseM3u(await f.text()))};
+function renderTV(){
+  const all=S('ch')||[],fav=S('fv')||[];
+  $('tvLive').innerHTML='📡 البث المباشر<small>'+all.length+' قناة</small>';
+  $('tvFav').innerHTML='⭐ المفضلة<small>'+fav.length+'</small>';
+  const box=$('chs');box.innerHTML='';
+  all.forEach((x,i)=>{
+    if(tvMode==='fav'&&!fav.includes(x.u))return;
+    const st=document.createElement('span');st.textContent=fav.includes(x.u)?'⭐':'☆';
+    st.onclick=()=>{const f=S('fv')||[];const k=f.indexOf(x.u);k>=0?f.splice(k,1):f.push(x.u);S('fv',f);renderTV()};
+    const d=it(box,x.n,()=>playUrl(x.u,'tvp'),st);d.appendChild(xb(()=>{all.splice(i,1);S('ch',all);renderTV()}))
+  })
+}
+// Radio (radio-browser.info)
+const RB=['https://de1.api.radio-browser.info','https://at1.api.radio-browser.info','https://nl1.api.radio-browser.info'];
+async function rb(p){for(const h of RB){try{const r=await fetch(h+'/json/'+p);if(r.ok)return await r.json()}catch(e){}}throw 0}
+let RC=[];
+async function radioCountries(){
+  $('rl').innerHTML='';$('rc').style.display='grid';$('rs').style.display='block';$('rc').innerHTML='<p>جار التحميل...</p>';
+  try{RC=(await rb('countries?hidebroken=true')).filter(x=>x.stationcount>0).sort((a,b)=>b.stationcount-a.stationcount);radioFilter()}
+  catch(e){$('rc').innerHTML='<p>تعذّر التحميل، تأكد من الإنترنت.</p>'}
+}
+function cname(c){try{return new Intl.DisplayNames(['ar'],{type:'region'}).of(c.iso_3166_1)}catch(e){return c.name}}
+function radioFilter(){
+  const q=$('rs').value.trim().toLowerCase();$('rc').innerHTML='';
+  RC.filter(c=>!q||cname(c).toLowerCase().includes(q)||c.name.toLowerCase().includes(q)).slice(0,60).forEach(c=>{
+    const d=document.createElement('div');d.className='tile';d.style.height='92px';
+    const fl=String.fromCodePoint(...[...c.iso_3166_1].map(ch=>127397+ch.charCodeAt(0)));
+    d.innerHTML='<span style="font-size:30px">'+fl+'</span>';const s=document.createElement('span');s.textContent=cname(c);d.appendChild(s);
+    const n=document.createElement('small');n.textContent=c.stationcount;d.appendChild(n);
+    d.onclick=()=>radioStations(c.iso_3166_1);$('rc').appendChild(d)})
+}
+async function radioStations(code){
+  $('rc').style.display='none';$('rs').style.display='none';$('rl').innerHTML='<p>جار التحميل...</p>';
+  try{const l=await rb('stations/search?countrycode='+code+'&hidebroken=true&order=votes&reverse=true&limit=200');
+    $('rl').innerHTML='';const b=document.createElement('button');b.className='btn';b.textContent='⬆ اختيار دولة ثانية';b.onclick=radioCountries;$('rl').appendChild(b);
+    l.forEach(s=>it($('rl'),s.name.trim()||s.url_resolved,()=>{const a=$('rp');a.src=s.url_resolved||s.url;a.play().catch(()=>{})}))}
+  catch(e){$('rl').innerHTML='<p>تعذّر تحميل المحطات.</p>'}
+}
+// Media from device
+function player(box,u,m){if(m.startsWith('video')){A.playVideo(u);return}box.innerHTML='';const t=m.startsWith('video')?'video':m.startsWith('audio')?'audio':'img';const e=document.createElement(t);e.src=FU(u);if(t==='img')e.style.cssText='width:100%;border-radius:14px';else{e.controls=true;e.autoplay=true;e.setAttribute('playsinline','')}box.appendChild(e)}
+function loadMedia(){
+  const kind=cur==='music'?'audio':cur==='photos'?'images':'video';
+  const r=A.listMedia(kind);$('ml').innerHTML='';$('mp').innerHTML='';
+  if(r==='PERM'){$('ml').innerHTML='<p>اسمح بالصلاحية من النافذة اللي طلعت...</p>';return}
+  const a=JSON.parse(r);if(!a.length){$('ml').innerHTML='<p>ما لقيت ملفات.</p>';return}
+  const m=kind==='audio'?'audio/':kind==='video'?'video/':'image/';
+  a.forEach(x=>{
+    if(kind==='images'){const im=document.createElement('img');im.loading='lazy';im.src=FU(x.u);im.onclick=()=>player($('mv'),x.u,m);$('mp').appendChild(im)}
+    else it($('ml'),x.n,()=>player($('mv'),x.u,m))
+  })
+}
+function mediaReload(){if($('media').classList.contains('on'))loadMedia()}
+// Files (multiple saved folders)
+let FP=[];
+function fshow(){FP=[];renderFiles()}
+function renderFiles(){
+  const box=$('fl');box.innerHTML='';
+  if(!FP.length){
+    JSON.parse(A.folders()).forEach(f=>it(box,'📁 '+f.n,()=>{FP.push([f.t,'']);renderFiles()},xb(()=>{A.removeFolder(f.t);renderFiles()})));
+    if(!box.children.length)box.innerHTML='<p>ما أضفت أي مجلد. اضغط إضافة مجلد.</p>';return}
+  const [t,d]=FP[FP.length-1];
+  it(box,'⬆ رجوع',()=>{FP.pop();renderFiles()});
+  const l=JSON.parse(A.listDir(t,d)).sort((a,b)=>(b.d-a.d)||a.n.localeCompare(b.n));
+  l.forEach(x=>{
+    if(x.d)it(box,'📁 '+x.n,()=>{FP.push([t,x.id]);renderFiles()});
+    else it(box,x.n,()=>{const m=x.m||'';if(/^(image|video|audio)\//.test(m))player($('fv'),x.u,m);else A.view(x.u,m)})
+  })
+}
+// Launch other apps (maps / my apps)
+function renderApps(){
+  const a=S('ap_'+appKey)||[];$('al').innerHTML='';
+  if(appKey==='maps' && A.saveMapApps) A.saveMapApps(JSON.stringify(a));
+  a.forEach((x,i)=>it($('al'),x.n,()=>A.openApp(x.p),xb(()=>{a.splice(i,1);S('ap_'+appKey,a);if(appKey==='maps' && A.saveMapApps)A.saveMapApps(JSON.stringify(a));renderApps()})));
+  $('ap2').innerHTML=''
+}
+function pickApp(){
+  const l=JSON.parse(A.listApps()).sort((a,b)=>a.n.localeCompare(b.n));const box=$('ap2');box.innerHTML='<p>اختر التطبيق:</p>';
+  l.forEach(x=>it(box,x.n,()=>{const a=S('ap_'+appKey)||[];if(!a.some(y=>y.p===x.p))a.push(x);S('ap_'+appKey,a);if(appKey==='maps' && A.saveMapApps)A.saveMapApps(JSON.stringify(a));renderApps()}))
+}
+(async()=>{$('did').textContent=DID.replace(/(.{4})/g,'$1 ').trim();const a=S('act');if(a&&await valid(String(a))){$('lock').style.display='none';init()}})();
+</script></body></html>
