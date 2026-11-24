@@ -447,7 +447,7 @@ jobs:
           scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
           if not scripts:
               raise SystemExit("No JavaScript found in index.html")
-          Path("/tmp/ameer-index-check.js").write_text("\\n".join(scripts))
+          Path("/tmp/ameer-index-check.js").write_text("\n".join(scripts))
           PY
           node --check /tmp/ameer-index-check.js
 
