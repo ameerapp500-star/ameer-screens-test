@@ -1069,6 +1069,194 @@ jobs:
                   raise SystemExit("Phone remote-input verification failed: " + token)
           PY
 
+
+      - name: Replace browser with phone remote controller and connect car launch
+        working-directory: extracted/car-screens-main
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          # The phone is only a controller: all web pages remain in the car WebView.
+          browser = Path("app/src/main/java/com/carscreens/app/BrowserActivity.java")
+          browser.write_text(r'''package com.carscreens.app;
+
+          import android.app.Activity;
+          import android.content.ClipData;
+          import android.content.ClipboardManager;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.text.InputType;
+          import android.view.View;
+          import android.view.WindowManager;
+          import android.widget.Button;
+          import android.widget.EditText;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          public class BrowserActivity extends Activity {
+            private EditText entry;
+
+            @Override protected void onCreate(Bundle state) {
+              super.onCreate(state);
+              getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+              LinearLayout root = new LinearLayout(this);
+              root.setOrientation(LinearLayout.VERTICAL);
+              root.setPadding(18, 18, 18, 18);
+              root.setBackgroundColor(0xFF101820);
+
+              TextView title = new TextView(this);
+              title.setText("أمير للشاشات - تحكم بمتصفح السيارة");
+              title.setTextColor(0xFFFFFFFF);
+              title.setTextSize(20);
+              title.setPadding(4, 8, 4, 14);
+              root.addView(title);
+
+              TextView current = new TextView(this);
+              String opened = getIntent().getStringExtra("u");
+              current.setText("المتصفح يعمل على شاشة السيارة" + (opened == null ? "" : "\n" + opened));
+              current.setTextColor(0xFFB8C7D9);
+              current.setTextSize(13);
+              current.setPadding(4, 4, 4, 12);
+              root.addView(current);
+
+              entry = new EditText(this);
+              entry.setSingleLine(true);
+              entry.setTextColor(0xFFFFFFFF);
+              entry.setHintTextColor(0xFF9EACBA);
+              entry.setHint("اكتب أو الصق النص أو الرابط هنا");
+              entry.setTextSize(17);
+              entry.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+              root.addView(entry, new LinearLayout.LayoutParams(-1, -2));
+
+              LinearLayout row = new LinearLayout(this);
+              row.setOrientation(LinearLayout.HORIZONTAL);
+              row.addView(button("لصق", v -> paste()), weighted());
+              row.addView(button("إرسال النص", v -> send("text")), weighted());
+              root.addView(row);
+
+              LinearLayout row2 = new LinearLayout(this);
+              row2.setOrientation(LinearLayout.HORIZONTAL);
+              row2.addView(button("بحث", v -> send("search")), weighted());
+              row2.addView(button("فتح رابط", v -> send("url")), weighted());
+              root.addView(row2);
+
+              Button close = button("رجوع", v -> finish());
+              root.addView(close, new LinearLayout.LayoutParams(-1, -2));
+              setContentView(root);
+            }
+
+            private LinearLayout.LayoutParams weighted() {
+              return new LinearLayout.LayoutParams(0, -2, 1f);
+            }
+
+            private Button button(String label, View.OnClickListener listener) {
+              Button b = new Button(this);
+              b.setText(label);
+              b.setOnClickListener(listener);
+              return b;
+            }
+
+            private void paste() {
+              try {
+                ClipboardManager cm = (ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
+                if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip().getItemCount() > 0) {
+                  CharSequence value = cm.getPrimaryClip().getItemAt(0).coerceToText(this);
+                  if (value != null) entry.setText(value);
+                  entry.setSelection(entry.length());
+                } else {
+                  Toast.makeText(this, "الحافظة فارغة", Toast.LENGTH_SHORT).show();
+                }
+              } catch (Exception e) {
+                Toast.makeText(this, "تعذّر لصق النص", Toast.LENGTH_SHORT).show();
+              }
+            }
+
+            private void send(String type) {
+              String value = entry.getText().toString();
+              if (value.trim().isEmpty()) {
+                Toast.makeText(this, "اكتب النص أو الصق الرابط أولاً", Toast.LENGTH_SHORT).show();
+                return;
+              }
+              if ("url".equals(type)) {
+                String v = value.trim();
+                if (!v.startsWith("http://") && !v.startsWith("https://")) {
+                  if (v.matches("(?i)^[a-z0-9.-]+\\.[a-z]{2,}(/.*)?$")) value = "https://" + v;
+                  else value = "https://www.google.com/search?q=" + Uri.encode(v);
+                }
+              }
+              try {
+                org.json.JSONObject command = new org.json.JSONObject();
+                command.put("type", type);
+                command.put("value", value);
+                getSharedPreferences("ameer_remote", MODE_PRIVATE).edit()
+                    .putString("pending", command.toString()).commit();
+                Toast.makeText(this, "تم إرسال الأمر إلى شاشة السيارة", Toast.LENGTH_SHORT).show();
+              } catch (Exception e) {
+                Toast.makeText(this, "تعذّر إرسال الأمر", Toast.LENGTH_SHORT).show();
+              }
+            }
+          }
+          ''')
+
+          # Opening the browser from the phone home page must open the car page
+          # and show this phone-side controller instead of rendering the website on the phone.
+          main_path = Path("app/src/main/java/com/carscreens/app/MainActivity.java")
+          main = main_path.read_text()
+          pat = re.compile(r'(?s)@JavascriptInterface public void openWeb\\(String u\\) \\{.*?\\n\\s*\\}')
+          replacement = '''@JavascriptInterface public void openWeb(String u) {
+              CarWebScreen.openWebOnCar(u);
+              Intent i = new Intent(MainActivity.this, BrowserActivity.class);
+              i.putExtra("u", u);
+              startActivity(i);
+            }'''
+          main, count = pat.subn(replacement, main, count=1)
+          if count != 1:
+            raise SystemExit("Could not connect phone browser controller from MainActivity")
+          main_path.write_text(main)
+
+          # Also launch the phone controller when the browser icon is tapped on the car screen.
+          car_path = Path("app/src/main/java/com/carscreens/app/CarWebScreen.java")
+          car = car_path.read_text()
+          pat = re.compile(r'(?s)@JavascriptInterface public void openWeb\\(String url\\) \\{.*?\\n\\s*\\}')
+          replacement = '''@JavascriptInterface public void openWeb(String url) {
+              openWebOnCar(url);
+              try {
+                Intent controller = new Intent(context, BrowserActivity.class);
+                controller.putExtra("u", url);
+                controller.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                context.startActivity(controller);
+              } catch (Exception e) {
+                Log.e("AmeerCarWeb", "Unable to open phone browser controller", e);
+              }
+            }'''
+          car, count = pat.subn(replacement, car, count=1)
+          if count != 1:
+            raise SystemExit("Could not connect phone controller to CarBridge.openWeb")
+          # Keep phone-entered commands from leaving the on-car keyboard covering the page.
+          car = car.replace("if(c.type==='url'){window.location.href=c.value;return;}",
+                            "if(c.type==='url'){kb.style.display='none';window.location.href=c.value;return;}")
+          car = car.replace("if(c.type==='search'){if(t){active=t;put(c.value);",
+                            "if(c.type==='search'){kb.style.display='none';if(t){active=t;put(c.value);")
+          car = car.replace("if(t){active=t;put(c.value);}else{window.location.href=",
+                            "if(t){kb.style.display='none';active=t;put(c.value);}else{window.location.href=")
+          car_path.write_text(car)
+
+          # Build-time checks ensure the phone controller and car bridge are both wired.
+          for path, tokens in [
+            (browser, ["لصق", "إرسال النص", "send", "ameer_remote"]),
+            (main_path, ["CarWebScreen.openWebOnCar(u)", "BrowserActivity.class"]),
+            (car_path, ["pollRemoteCommand()", "BrowserActivity.class", "Android.pollRemoteCommand"])
+          ]:
+            source = path.read_text()
+            for token in tokens:
+              if token not in source:
+                raise SystemExit("Remote browser wiring check failed: " + str(path) + " / " + token)
+          PY
+
       - name: Validate original interface JavaScript
         working-directory: extracted/car-screens-main
         run: |
