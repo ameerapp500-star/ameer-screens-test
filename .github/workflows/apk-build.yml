@@ -1347,6 +1347,50 @@ jobs:
         working-directory: extracted/car-screens-main
         run: test -s app/src/main/assets/index.html
 
+      - name: Improve HLS playlist detection for IPTV playback
+        working-directory: extracted/car-screens-main
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("app/src/main/java/com/carscreens/app/CarWebScreen.java")
+          car = path.read_text()
+
+          mime_import = "import androidx.media3.common.MimeTypes;"
+          if mime_import not in car:
+              marker = "import androidx.media3.common.MediaItem;"
+              if marker not in car:
+                  raise SystemExit("Media3 MediaItem import missing")
+              car = car.replace(marker, marker + "\n" + mime_import, 1)
+
+          old = "carPlayer.setMediaItem(MediaItem.fromUri(Uri.parse(mediaUrl)));"
+          new = """String lowerUrl = mediaUrl.toLowerCase(java.util.Locale.ROOT);
+                  MediaItem.Builder mediaItem = new MediaItem.Builder().setUri(Uri.parse(mediaUrl));
+                  if (lowerUrl.contains(".m3u8") || lowerUrl.contains("format=m3u8") || lowerUrl.contains("type=hls")) {
+                    mediaItem.setMimeType(MimeTypes.APPLICATION_M3U8);
+                  }
+                  carPlayer.setMediaItem(mediaItem.build());"""
+          if old in car:
+              car = car.replace(old, new, 1)
+          elif "mediaItem.setMimeType(MimeTypes.APPLICATION_M3U8)" not in car:
+              raise SystemExit("IPTV media item insertion point missing")
+
+          if "playerView.setKeepScreenOn(true);" not in car:
+              car = car.replace("playerView.setPlayer(carPlayer);",
+                                "playerView.setPlayer(carPlayer);\n                  playerView.setKeepScreenOn(true);", 1)
+
+          required = [
+              "MimeTypes.APPLICATION_M3U8",
+              "new MediaItem.Builder().setUri(Uri.parse(mediaUrl))",
+              "playerView.setKeepScreenOn(true);"
+          ]
+          for token in required:
+              if token not in car:
+                  raise SystemExit("IPTV HLS validation failed: " + token)
+
+          path.write_text(car)
+          PY
+
       - name: Validate original interface JavaScript
         working-directory: extracted/car-screens-main
         run: |
