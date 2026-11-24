@@ -1335,7 +1335,7 @@ jobs:
           for path, tokens in [
             (browser, ["لصق", "إرسال النص", "send", "ameer_remote"]),
             (main_path, ["CarWebScreen.openWebOnCar(u)", "BrowserActivity.class"]),
-            (car_path, ["pollRemoteCommand()", "BrowserActivity.class", "Android.pollRemoteCommand"])
+            (car_path, ["pollRemoteCommand()", "openWebOnCar(url)", "Android.pollRemoteCommand"])
           ]:
             source = path.read_text()
             for token in tokens:
