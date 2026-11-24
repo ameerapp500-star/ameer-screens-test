@@ -718,10 +718,13 @@ jobs:
           if bridge_marker not in java:
               raise SystemExit("CarBridge insertion anchor missing")
           java = java.replace(bridge_marker, bridge_add + bridge_marker, 1)
-          class_boundary = "\n          }\n\n          final class CarBridge {"
-          if class_boundary not in java:
-              raise SystemExit("CarBridge class boundary missing")
-          java = java.replace(class_boundary, "\n          final class CarBridge {", 1)
+          bridge_pos = java.find("final class CarBridge {")
+          if bridge_pos < 0:
+              raise SystemExit("CarBridge class declaration missing")
+          outer_close = java.rfind("}", 0, bridge_pos)
+          if outer_close < 0:
+              raise SystemExit("CarWebScreen closing brace missing")
+          java = java[:outer_close] + java[outer_close + 1:]
           java = java.rstrip() + "\n          }\n"
           java_path.write_text(java)
           PY
