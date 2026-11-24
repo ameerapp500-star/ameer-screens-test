@@ -466,6 +466,113 @@ jobs:
           ])
           PY
 
+      - name: Add phone-assisted M3U file picker for the car screen
+        working-directory: extracted/car-screens-main
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          main_path = Path("app/src/main/java/com/carscreens/app/MainActivity.java")
+          main = main_path.read_text()
+          main = main.replace(
+            "FrameLayout root; boolean folderPickerOnly;",
+            "FrameLayout root; boolean folderPickerOnly; boolean m3uPickerOnly;",
+            1
+          )
+          main = main.replace(
+            'folderPickerOnly = getIntent().getBooleanExtra("ameer_pick_folder", false);\n    w.loadUrl("file:///android_asset/index.html");\n    if (folderPickerOnly) w.post(() -> launchFolderPicker());',
+            'folderPickerOnly = getIntent().getBooleanExtra("ameer_pick_folder", false);\n    m3uPickerOnly = getIntent().getBooleanExtra("ameer_pick_m3u", false);\n    w.loadUrl("file:///android_asset/index.html");\n    if (folderPickerOnly) w.post(() -> launchFolderPicker());\n    else if (m3uPickerOnly) w.post(() -> launchM3uPicker());',
+            1
+          )
+          anchor = '  @Override protected void onNewIntent(Intent intent) {\n    super.onNewIntent(intent); setIntent(intent);\n    if (intent.getBooleanExtra("ameer_pick_folder", false)) { folderPickerOnly = true; launchFolderPicker(); }\n  }'
+          replacement = '''  private void launchM3uPicker() {
+            try {
+              Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+              i.addCategory(Intent.CATEGORY_OPENABLE);
+              i.setType("*/*");
+              i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/x-mpegURL", "audio/x-mpegurl", "application/vnd.apple.mpegurl", "text/plain"});
+              startActivityForResult(i, 3);
+            } catch (Exception e) {
+              getSharedPreferences("ameer_m3u", MODE_PRIVATE).edit().putString("pending", "").apply();
+              if (m3uPickerOnly) finish();
+            }
+          }
+
+          @Override protected void onNewIntent(Intent intent) {
+            super.onNewIntent(intent); setIntent(intent);
+            if (intent.getBooleanExtra("ameer_pick_folder", false)) { folderPickerOnly = true; launchFolderPicker(); }
+            if (intent.getBooleanExtra("ameer_pick_m3u", false)) { m3uPickerOnly = true; launchM3uPicker(); }
+          }'''
+          if anchor in main:
+            main = main.replace(anchor, replacement, 1)
+          elif "private void launchM3uPicker()" not in main:
+            raise SystemExit("MainActivity M3U picker insertion point missing")
+          result_anchor = '  @Override protected void onActivityResult(int rq, int rs, Intent d) {'
+          result_code = '''  @Override protected void onActivityResult(int rq, int rs, Intent d) {
+            if (rq == 3) {
+              String playlist = "";
+              if (rs == RESULT_OK && d != null && d.getData() != null) {
+                try (java.io.InputStream in = getContentResolver().openInputStream(d.getData());
+                     java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+                  if (in != null) {
+                    byte[] buffer = new byte[8192]; int n, total = 0;
+                    while ((n = in.read(buffer)) != -1 && total < 2000000) { out.write(buffer, 0, n); total += n; }
+                    playlist = out.toString("UTF-8");
+                  }
+                } catch (Exception e) { android.util.Log.e("AmeerScreens", "M3U file read failed", e); }
+              }
+              getSharedPreferences("ameer_m3u", MODE_PRIVATE).edit().putString("pending", playlist).apply();
+              if (m3uPickerOnly) finish();
+              return;
+            }'''
+          if result_anchor in main and 'if (rq == 3)' not in main:
+            main = main.replace(result_anchor, result_code, 1)
+          elif 'if (rq == 3)' not in main:
+            raise SystemExit("MainActivity result handler insertion point missing")
+          main_path.write_text(main)
+
+          car_path = Path("app/src/main/java/com/carscreens/app/CarWebScreen.java")
+          car = car_path.read_text()
+          pick_anchor = '@JavascriptInterface public void pickFolder() {'
+          pick_pos = car.find(pick_anchor)
+          if pick_pos < 0: raise SystemExit("CarBridge folder picker anchor missing")
+          end = car.find('\n            }', pick_pos)
+          if end < 0: raise SystemExit("CarBridge folder picker end missing")
+          end += len('\n            }')
+          if "pickM3uFile()" not in car:
+            extra = '''
+            @JavascriptInterface public void pickM3uFile() {
+              try {
+                Intent i = new Intent(context, MainActivity.class);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                i.putExtra("ameer_pick_m3u", true);
+                context.startActivity(i);
+              } catch (Exception e) { Log.e("AmeerCarWeb", "Unable to open M3U picker", e); }
+            }
+            @JavascriptInterface public String consumeM3u() {
+              android.content.SharedPreferences p = context.getSharedPreferences("ameer_m3u", 0);
+              String value = p.getString("pending", "");
+              if (value != null && !value.isEmpty()) p.edit().remove("pending").apply();
+              return value == null ? "" : value;
+            }'''
+            car = car[:end] + extra + car[end:]
+          car_path.write_text(car)
+
+          html_path = Path("app/src/main/assets/index.html")
+          html = html_path.read_text()
+          html = html.replace(
+            '<button class="btn" onclick="m3f.click()">اختيار ملف m3u</button>',
+            '<button class="btn" onclick="if(A.pickM3uFile)A.pickM3uFile();else m3f.click()">اختيار ملف m3u</button>',
+            1
+          )
+          file_event = "$('m3f').onchange=async e=>{const f=e.target.files[0];if(f)addList(parseM3u(await f.text()))};"
+          if file_event in html and "A.consumeM3u()" not in html:
+            html = html.replace(file_event, file_event + """
+          if(A.consumeM3u&&!window.__ameerM3uPoll){window.__ameerM3uPoll=true;setInterval(()=>{try{const t=A.consumeM3u();if(t&&t.length)addList(parseM3u(t));}catch(e){}},900);}
+          """, 1)
+          html_path.write_text(html)
+          PY
+
       - name: Fix car input, in-surface video, IPTV and remove maps
         working-directory: extracted/car-screens-main
         run: |
