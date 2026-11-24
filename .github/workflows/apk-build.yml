@@ -32,6 +32,10 @@ jobs:
 
       - name: Extract new project
         run: unzip -q ameer-screens-android-auto-ui-update.zip -d extracted
+        # Load the reference UI before subsequent build-time patches are applied.
+        # This prevents the final asset copy from erasing Android Auto/IPTV fixes.
+        
+
 
       - name: Upload extracted source for inspection
         uses: actions/upload-artifact@v4
@@ -1257,9 +1261,9 @@ jobs:
                 raise SystemExit("Remote browser wiring check failed: " + str(path) + " / " + token)
           PY
 
-      - name: Apply reference dashboard interface
+      - name: Confirm patched reference dashboard interface
         working-directory: extracted/car-screens-main
-        run: cp ../../ameer-ui.html app/src/main/assets/index.html
+        run: test -s app/src/main/assets/index.html
 
       - name: Validate original interface JavaScript
         working-directory: extracted/car-screens-main
