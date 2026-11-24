@@ -1206,7 +1206,7 @@ jobs:
           # and show this phone-side controller instead of rendering the website on the phone.
           main_path = Path("app/src/main/java/com/carscreens/app/MainActivity.java")
           main = main_path.read_text()
-          pat = re.compile(r'(?sm)@JavascriptInterface public void openWeb[(]String u[)] [{].*?^\\s*[}]')
+          pat = re.compile(r'(?s)@JavascriptInterface public void openWeb[(]String u[)] [{].*?}')
           replacement = '''@JavascriptInterface public void openWeb(String u) {
               CarWebScreen.openWebOnCar(u);
               Intent i = new Intent(MainActivity.this, BrowserActivity.class);
@@ -1221,7 +1221,7 @@ jobs:
           # Also launch the phone controller when the browser icon is tapped on the car screen.
           car_path = Path("app/src/main/java/com/carscreens/app/CarWebScreen.java")
           car = car_path.read_text()
-          pat = re.compile(r'(?sm)@JavascriptInterface public void openWeb[(]String url[)] [{].*?^\\s*[}]')
+          pat = re.compile(r'(?s)@JavascriptInterface public void openWeb[(]String url[)] [{].*?}')
           replacement = '''@JavascriptInterface public void openWeb(String url) {
               openWebOnCar(url);
               try {
