@@ -447,8 +447,7 @@ jobs:
                 if (c != null) c.close();
               }
               return out.toString();
-            }''','real SAF directory listing')
-          ])
+            }''','real SAF directory listing')          ])
           patch("app/src/main/assets/index.html", [              ("""function fshow(){FP=[];renderFiles()}""",
                """function fshow(){FP=[];renderFiles()}\nsetInterval(()=>{if(cur==='files'&&!FP.length)renderFiles()},1500)""",
                'refresh saved folders after picker'),
@@ -897,8 +896,7 @@ jobs:
                   playerView.setKeepContentOnPlayerReset(true);
                   playerView.setPlayer(carPlayer);
                   carPlayer.setAudioAttributes(new AudioAttributes.Builder()                      .setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true);
-                  carPlayer.addListener(new Player.Listener() {                    @Override public void onPlayerError(PlaybackException error) {
-                      Toast.makeText(context, "تعذّر تشغيل القناة أو الفيديو: " + error.getErrorCodeName(), Toast.LENGTH_LONG).show();                      Log.e("AmeerCarWeb", "Media3 playback error", error);                    }
+                  carPlayer.addListener(new Player.Listener() {                    @Override public void onPlayerError(PlaybackException error) {                      Toast.makeText(context, "تعذّر تشغيل القناة أو الفيديو: " + error.getErrorCodeName(), Toast.LENGTH_LONG).show();                      Log.e("AmeerCarWeb", "Media3 playback error", error);                    }
                   });
                   web.setVisibility(View.GONE);
                   playerView.setVisibility(View.VISIBLE);
@@ -1039,7 +1037,7 @@ jobs:
           car_path = Path("app/src/main/java/com/carscreens/app/CarWebScreen.java")
           car = car_path.read_text()
           if "pollRemoteCommand()" not in car:
-              marker = "            void release() {"
+              marker = "@JavascriptInterface public void view(String uri, String mime) {"
               method = """            @JavascriptInterface public String pollRemoteCommand() {
               android.content.SharedPreferences prefs = context.getSharedPreferences("ameer_remote", 0);
               String command = prefs.getString("pending", "");
