@@ -53,29 +53,47 @@ jobs:
             echo 'android.enableJetifier=true' >> gradle.properties
           fi
 
-      - name: Fix Car App Service
+      - name: Register media service and secure car host validation
         working-directory: extracted/car-screens-main
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          p = Path("app/src/main/java/com/carscreens/app/MapsCarAppService.java")
-          s = p.read_text()
+          service = Path("app/src/main/java/com/carscreens/app/MapsCarAppService.java")
+          source = service.read_text()
+          if "createHostValidator(" not in source:
+              source = source.replace(
+                  "import androidx.car.app.CarAppService;",
+                  "import androidx.car.app.CarAppService;\nimport androidx.car.app.validation.HostValidator;"
+              )
+              marker = "  @Override public Session onCreateSession()"
+              method = """  @Override
+            public HostValidator createHostValidator() {
+              return new HostValidator.Builder(this)
+                  .addAllowedHosts(androidx.car.app.R.array.hosts_allowlist_sample)
+                  .build();
+            }
 
-          if "createHostValidator(" not in s:
-              package_end = s.find("\n")
-              s = s[:package_end+1] + "\nimport androidx.car.app.validation.HostValidator;\n" + s[package_end+1:]
-              pos = s.rfind("}")
-              if pos < 0:
-                  raise SystemExit("Class closing brace not found")
-              method = """
-              @Override
-              public HostValidator createHostValidator() {
-                  return HostValidator.ALLOW_ALL_HOSTS_VALIDATOR;
-              }
           """
-              s = s[:pos] + method + "\n" + s[pos:]
-              p.write_text(s)
+              if marker not in source:
+                  raise SystemExit("Car app service insertion point not found")
+              source = source.replace(marker, method + marker, 1)
+              service.write_text(source)
+
+          manifest = Path("app/src/main/AndroidManifest.xml")
+          xml = manifest.read_text()
+          if 'android:name=".AutoService"' not in xml:
+              block = """    <service
+                  android:name=".AutoService"
+                  android:exported="true"
+                  android:permission="android.permission.BIND_MEDIA_BROWSER">
+                  <intent-filter>
+                      <action android:name="android.media.browse.MediaBrowserService" />
+                  </intent-filter>
+              </service>
+          """
+              xml = xml.replace("</application>", block + "  </application>")
+              manifest.write_text(xml)
           PY
 
       - name: Build APK
