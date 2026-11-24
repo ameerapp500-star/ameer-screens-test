@@ -469,13 +469,12 @@ jobs:
               '''@JavascriptInterface public void openApp(String pkg) {
               try { Intent i = context.getPackageManager().getLaunchIntentForPackage(pkg); if (i != null) { i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(i); } } catch (Exception ignored) {}
             }
-            @JavascriptInterface public void openMapApp(String pkg) {
-              try {
-                Intent nav = new Intent(CarContext.ACTION_NAVIGATE, Uri.parse("geo:0,0"));
-                context.startCarApp(nav);
-              } catch (Exception e) {
-                Log.e("AmeerCarWeb", "Android Auto navigation handoff failed for " + pkg, e);
+            @JavascriptInterface public String openMapApp(String pkg) {
+              if ("com.waze".equals(pkg)) {
+                web.post(() -> web.loadUrl("https://www.waze.com/live-map"));
+                return "WEB";
               }
+              return "UNSUPPORTED";
             }''',
               "car navigation handoff")
 
@@ -529,7 +528,7 @@ jobs:
 
           replace_once("app/src/main/assets/index.html",
               '''a.forEach((x,i)=>it($('al'),x.n,()=>A.openApp(x.p),xb(()=>{''',
-              '''a.forEach((x,i)=>it($('al'),x.n,()=>appKey==='maps'&&A.openMapApp?A.openMapApp(x.p):A.openApp(x.p),xb(()=>{''',
+              '''a.forEach((x,i)=>it($('al'),x.n,()=>{if(appKey==='maps'&&A.openMapApp){const r=A.openMapApp(x.p);if(r==='UNSUPPORTED')alert('هذا التطبيق لا يوفّر عرضاً داخل Android Auto؛ لن نفتح تطبيق الهاتف.')}else A.openApp(x.p)},xb(()=>{''',
               "maps launch through car navigation host")
           PY
 
