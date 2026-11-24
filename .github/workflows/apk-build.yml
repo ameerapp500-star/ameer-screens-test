@@ -567,6 +567,12 @@ jobs:
           )
           java = java.replace("MotionEvent.ACTION_DOWN, x, y, 0", "MotionEvent.ACTION_DOWN, sx, sy, 0")
           java = java.replace("MotionEvent.ACTION_UP, x, y, 0", "MotionEvent.ACTION_UP, sx, sy, 0")
+          java = java.replace(
+              "float y = Math.max(2, web.getHeight() * .5f);",
+              "float y = Math.max(2, web.getHeight() * .5f);\n              float sdx = current == null ? dx : dx * web.getWidth() / Math.max(1f, current.getWidth());\n              float sdy = current == null ? dy : dy * web.getHeight() / Math.max(1f, current.getHeight());"
+          )
+          java = java.replace("MotionEvent.ACTION_MOVE, x - dx, y - dy, 0", "MotionEvent.ACTION_MOVE, sx - sdx, sy - sdy, 0")
+          java = java.replace("MotionEvent.ACTION_UP, x - dx, y - dy, 0", "MotionEvent.ACTION_UP, sx - sdx, sy - sdy, 0")
           java = java.replace("web.dispatchTouchEvent(down);", "presentation.getWindow().getDecorView().dispatchTouchEvent(down);")
           java = java.replace("web.dispatchTouchEvent(up);", "presentation.getWindow().getDecorView().dispatchTouchEvent(up);")
           if "presentation.getWindow().getDecorView().dispatchTouchEvent(down);" not in java:
