@@ -849,7 +849,7 @@ jobs:
               "import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;"
           ]:
               if imp not in car:
-                  car = car.replace("import android.view.Surface;", "import android.view.Surface;\\n" + imp, 1)
+                  car = car.replace("import android.view.Surface;", "import android.view.Surface;\n" + imp, 1)
 
           # A custom Arabic/English keyboard is rendered in the car WebView.
           if "onCheckIsTextEditor() { return false; }" not in car:
