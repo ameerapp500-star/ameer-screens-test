@@ -547,7 +547,9 @@ jobs:
           )
           java = java.replace(
               "long now = android.os.SystemClock.uptimeMillis();",
-              "float sx = current == null ? x : x * web.getWidth() / Math.max(1f, current.getWidth());\\n              float sy = current == null ? y : y * web.getHeight() / Math.max(1f, current.getHeight());\\n              long now = android.os.SystemClock.uptimeMillis();"
+              """float sx = current == null ? x : x * web.getWidth() / Math.max(1f, current.getWidth());
+              float sy = current == null ? y : y * web.getHeight() / Math.max(1f, current.getHeight());
+              long now = android.os.SystemClock.uptimeMillis();"""
           )
           java = java.replace("MotionEvent.ACTION_DOWN, x, y, 0", "MotionEvent.ACTION_DOWN, sx, sy, 0")
           java = java.replace("MotionEvent.ACTION_UP, x, y, 0", "MotionEvent.ACTION_UP, sx, sy, 0")
