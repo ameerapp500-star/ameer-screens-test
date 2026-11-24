@@ -462,7 +462,7 @@ jobs:
           p = Path("app/src/main/assets/index.html")
           source = p.read_text()
           start = source.find("function renderApps(){")
-          end = source.find("\\nfunction pickApp()", start)
+          end = source.find("function pickApp()", start)
           if start < 0 or end < 0:
               raise SystemExit("renderApps function bounds missing")
           replacement = """function renderApps(){
