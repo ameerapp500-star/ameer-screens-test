@@ -533,12 +533,8 @@ jobs:
 
           car_path = Path("app/src/main/java/com/carscreens/app/CarWebScreen.java")
           car = car_path.read_text()
-          pick_anchor = '@JavascriptInterface public void pickFolder() {'
-          pick_pos = car.find(pick_anchor)
-          if pick_pos < 0: raise SystemExit("CarBridge folder picker anchor missing")
-          end = car.find('\n            }', pick_pos)
-          if end < 0: raise SystemExit("CarBridge folder picker end missing")
-          end += len('\n            }')
+          folders_anchor = '@JavascriptInterface public String folders()'
+          if folders_anchor not in car: raise SystemExit("CarBridge folders method anchor missing")
           if "pickM3uFile()" not in car:
             extra = '''
             @JavascriptInterface public void pickM3uFile() {
@@ -554,8 +550,9 @@ jobs:
               String value = p.getString("pending", "");
               if (value != null && !value.isEmpty()) p.edit().remove("pending").apply();
               return value == null ? "" : value;
-            }'''
-            car = car[:end] + extra + car[end:]
+            }
+            '''
+            car = car.replace(folders_anchor, extra + '\n            ' + folders_anchor, 1)
           car_path.write_text(car)
 
           html_path = Path("app/src/main/assets/index.html")
