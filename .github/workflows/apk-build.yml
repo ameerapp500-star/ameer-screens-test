@@ -541,7 +541,7 @@ jobs:
           }
           """ + html[b:]
           html = html.replace(
-            "async function addUrl(){try{const u=$('m3url').value.trim();const t=A.fetchText?A.fetchText(u):await(await fetch(u)).text();addList(parseM3u(t));$('m3url').value=''}catch(e){alert('تعذّر تحميل القائمة. تحقق من الرابط أو الصق محتواها.')}}",
+            "async function addUrl(){try{const t=await(await fetch($('m3url').value.trim())).text();addList(parseM3u(t));$('m3url').value=''}catch(e){alert('تعذّر تحميل الرابط. الصق محتوى القائمة بدلاً منه.')}}",
             "async function addUrl(){try{const u=$('m3url').value.trim();if(!u)throw 0;const t=A.fetchText?A.fetchText(u):await(await fetch(u)).text();if(!t||!t.trim())throw 0;const l=parseM3u(t,u);if(!l.length)throw 0;addList(l);$('m3url').value=''}catch(e){alert('تعذّر تحميل القنوات من الرابط. جرّب رابط M3U مباشر أو اختر الملف من الجهاز.')}}"
           )
           html = html.replace("function show(id,t){$('home').style.display='none';", "function show(id,t){if(A.hidePlayer)A.hidePlayer();$('home').style.display='none';")
@@ -726,6 +726,33 @@ jobs:
               raise SystemExit("CarWebScreen closing brace missing")
           java = java[:outer_close] + java[outer_close + 1:]
           java = java.rstrip() + "\n          }\n"
+          main_path = Path("app/src/main/java/com/carscreens/app/MainActivity.java")
+          main_java = main_path.read_text()
+          main_bridge_marker = "@JavascriptInterface public void openApp(String p) {"
+          main_fetch = """@JavascriptInterface public String fetchText(String address) {
+              java.net.HttpURLConnection connection = null;
+              try {
+                java.net.URL u = new java.net.URL(address);
+                connection = (java.net.HttpURLConnection) u.openConnection();
+                connection.setConnectTimeout(12000); connection.setReadTimeout(20000);
+                connection.setRequestProperty("User-Agent", "AmeerScreens/1.0");
+                connection.setRequestProperty("Accept", "application/x-mpegURL, audio/x-mpegurl, */*");
+                int status = connection.getResponseCode();
+                if (status < 200 || status >= 300) return "";
+                java.io.InputStream in = connection.getInputStream();
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                byte[] buffer = new byte[8192]; int count; int total = 0;
+                while ((count = in.read(buffer)) != -1 && total < 10000000) { out.write(buffer,0,count); total += count; }
+                in.close();
+                return new String(out.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+              } catch (Exception e) { return ""; }
+              finally { if (connection != null) connection.disconnect(); }
+            }
+            """
+          if main_bridge_marker not in main_java:
+              raise SystemExit("MainActivity bridge insertion anchor missing")
+          main_java = main_java.replace(main_bridge_marker, main_fetch + main_bridge_marker, 1)
+          main_path.write_text(main_java)
           java_path.write_text(java)
           PY
 
