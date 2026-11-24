@@ -454,41 +454,169 @@ jobs:
           ])
           PY
 
-      - name: Add navigation shortcuts to the original interface
+      - name: Fix car input, in-surface video, IPTV and remove maps
         working-directory: extracted/car-screens-main
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("app/src/main/assets/index.html")
-          source = p.read_text()
-          start = source.find("function renderApps(){")
-          end = source.find("function pickApp()", start)
-          if start < 0 or end < 0:
-              raise SystemExit("renderApps function bounds missing")
-          replacement = """function renderApps(){
+          import re
+
+          html_path = Path("app/src/main/assets/index.html")
+          html = html_path.read_text()
+
+          # Remove the maps tile and its dedicated web shortcut from the interface.
+          html = re.sub(r"\['maps','الخرائط',[^\n]*\],?\n", "", html)
+          html = re.sub(r'\s*<div id="mapsweb"[^>]*>.*?</div>\s*', '\n', html, flags=re.S)
+          html = html.replace("let cur='',appKey='maps',tvMode='live';", "let cur='',appKey='apps',tvMode='live';")
+          html = html.replace("if(k==='maps'||k==='apps')", "if(k==='apps')")
+          html = html.replace("if(appKey==='maps' && A.saveMapApps) A.saveMapApps(JSON.stringify(a));", "")
+          html = html.replace("if(appKey==='maps' && A.saveMapApps)A.saveMapApps(JSON.stringify(a));", "")
+          a = html.find("function renderApps(){")
+          b = html.find("function pickApp()", a)
+          if a < 0 or b < 0:
+              raise SystemExit("renderApps bounds missing")
+          html = html[:a] + """function renderApps(){
             const a=S('ap_'+appKey)||[];
             $('al').innerHTML='';
-            if(appKey==='maps') {
-              it($('al'),'Waze',()=>A.openApp('com.waze'));
-              it($('al'),'Google Maps',()=>A.openApp('com.google.android.apps.maps'));
-              if(A.saveMapApps) A.saveMapApps(JSON.stringify(a));
-            }
-            a.filter(x=>appKey!=='maps'||(x.p!=='com.waze'&&x.p!=='com.google.android.apps.maps'))
-              .forEach((x,i)=>it($('al'),x.n,()=>A.openApp(x.p),xb(()=>{a.splice(i,1);S('ap_'+appKey,a);if(appKey==='maps'&&A.saveMapApps)A.saveMapApps(JSON.stringify(a));renderApps()})));
+            a.forEach((x,i)=>it($('al'),x.n,()=>A.openApp(x.p),xb(()=>{a.splice(i,1);S('ap_'+appKey,a);renderApps()})));
             $('ap2').innerHTML='';
-          }"""
-          source = source[:start] + replacement + source[end:]
-          p.write_text(source)
+          }
+          """ + html[b:]
 
-          manifest = Path("app/src/main/AndroidManifest.xml")
-          xml = manifest.read_text()
-          if "<queries>" not in xml:
-              raise SystemExit("Android package visibility queries block missing")
-          for package in ("com.waze", "com.google.android.apps.maps", "iq.darbuna.app"):
-              entry = f'<package android:name="{package}"/>'
-              if entry not in xml:
-                  xml = xml.replace("</queries>", entry + "</queries>", 1)
-          manifest.write_text(xml)
+          # Play videos inside the same WebView surface, not in a phone Activity.
+          a = html.find("function player(box,u,m){")
+          b = html.find("\nfunction loadMedia()", a)
+          if a < 0 or b < 0:
+              raise SystemExit("player function bounds missing")
+          html = html[:a] + """function player(box,u,m){
+            box.innerHTML='';
+            const t=m.startsWith('video')?'video':m.startsWith('audio')?'audio':'img';
+            const e=document.createElement(t);
+            e.src=FU(u);
+            if(t==='img'){e.style.cssText='width:100%;border-radius:14px'}
+            else{
+              e.controls=true;e.autoplay=true;e.preload='metadata';
+              if(t==='video'){e.playsInline=true;e.setAttribute('playsinline','');e.style.cssText='width:100%;max-height:68vh;background:#000;border-radius:14px'}
+              e.addEventListener('error',()=>{const p=document.createElement('p');p.textContent='تعذّر تشغيل الملف داخل الشاشة؛ قد يكون الترميز غير مدعوم.';box.appendChild(p)});
+              const play=e.play();if(play&&play.catch)play.catch(()=>{});
+            }
+            box.appendChild(e);
+          }
+          """ + html[b:]
+
+          # Improve M3U parsing and HLS/native playback fallback with visible errors.
+          a = html.find("function playUrl(u,id){")
+          b = html.find("\nfunction parseM3u", a)
+          if a < 0 or b < 0:
+              raise SystemExit("playUrl bounds missing")
+          html = html[:a] + """let activeHls=null;
+          function playUrl(u,id){
+            const v=$(id);u=(u||'').trim();if(!u)return;
+            if(activeHls){try{activeHls.destroy()}catch(e){}activeHls=null}
+            v.pause();v.removeAttribute('src');v.load();v.controls=true;v.playsInline=true;v.setAttribute('playsinline','');
+            v.onerror=()=>{const old=$('tvError');if(old)old.remove();const p=document.createElement('p');p.id='tvError';p.textContent='تعذّر تشغيل القناة: تحقق من الرابط أو توافق البث والترميز.';$('chs').prepend(p)};
+            const hlsLike=/\\.m3u8?(?:$|[?#])/i.test(u)||/m3u8/i.test(u);
+            if(hlsLike&&window.Hls&&Hls.isSupported()){
+              activeHls=new Hls({enableWorker:true,lowLatencyMode:false});
+              activeHls.loadSource(u);activeHls.attachMedia(v);
+              activeHls.on(Hls.Events.ERROR,(ev,data)=>{if(data.fatal){if(data.type===Hls.ErrorTypes.NETWORK_ERROR)activeHls.startLoad();else if(data.type===Hls.ErrorTypes.MEDIA_ERROR)activeHls.recoverMediaError();else{try{activeHls.destroy()}catch(e){}activeHls=null;v.src=u;v.play().catch(()=>{})}}});
+            }else{
+              if(hlsLike&&v.canPlayType('application/vnd.apple.mpegurl'))v.src=u;
+              else v.src=u;
+            }
+            v.play().catch(()=>{});
+          }""" + html[b:]
+
+          # Prefer native bridge download for M3U lists to avoid WebView CORS failures.
+          html = html.replace(
+            "async function addUrl(){try{const t=await(await fetch($('m3url').value.trim())).text();addList(parseM3u(t));$('m3url').value=''}catch(e){alert('تعذّر تحميل الرابط. الصق محتوى القائمة بدلاً منه.')}}",
+            "async function addUrl(){try{const u=$('m3url').value.trim();const t=A.fetchText?A.fetchText(u):await(await fetch(u)).text();addList(parseM3u(t));$('m3url').value=''}catch(e){alert('تعذّر تحميل القائمة. تحقق من الرابط أو الصق محتواها.')}}"
+          )
+          html_path.write_text(html)
+
+          # Harden touch-to-WebView coordinate mapping and enable WebView focus for input fields.
+          java_path = Path("app/src/main/java/com/carscreens/app/CarWebScreen.java")
+          java = java_path.read_text()
+          java = java.replace(
+              "web = new WebView(getCarContext());",
+              "web = new WebView(getCarContext());\n                web.setFocusable(true);\n                web.setFocusableInTouchMode(true);"
+          )
+          java = java.replace(
+              "presentation.show();\n                web.loadUrl",
+              "presentation.show();\n                web.requestFocus();\n                web.loadUrl"
+          )
+          java = java.replace(
+              "long now = android.os.SystemClock.uptimeMillis();\n              MotionEvent down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, x, y, 0);",
+              "float sx = current == null ? x : x * web.getWidth() / Math.max(1f, current.getWidth());\n              float sy = current == null ? y : y * web.getHeight() / Math.max(1f, current.getHeight());\n              long now = android.os.SystemClock.uptimeMillis();\n              MotionEvent down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, sx, sy, 0);"
+          )
+          java = java.replace(
+              "MotionEvent up = MotionEvent.obtain(now, now + 60, MotionEvent.ACTION_UP, x, y, 0);\n              presentation.getWindow().getDecorView().dispatchTouchEvent(down);\n              presentation.getWindow().getDecorView().dispatchTouchEvent(up);",
+              "MotionEvent up = MotionEvent.obtain(now, now + 60, MotionEvent.ACTION_UP, sx, sy, 0);\n              web.dispatchTouchEvent(down);\n              web.dispatchTouchEvent(up);"
+          )
+          if "web.dispatchTouchEvent(down);" not in java:
+              raise SystemExit("touch dispatch patch failed")
+          # Keep media playback in WebView by serving persisted SAF/MediaStore URIs through the app bridge URL.
+          java = java.replace(
+              "import android.webkit.WebViewClient;",
+              "import android.webkit.WebViewClient;\n          import android.webkit.WebResourceRequest;\n          import android.webkit.WebResourceResponse;\n          import java.io.InputStream;\n          import java.util.HashMap;"
+          )
+          needle = """@Override public void onPageFinished(WebView view, String url) {
+                    super.onPageFinished(view, url);
+                    installCarKeyboard(view);
+                  }"""
+          replacement = """@Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                    String address = request.getUrl().toString();
+                    if (!address.startsWith("https://localfile.invalid/")) return null;
+                    Map<String,String> headers = new HashMap<>();
+                    headers.put("Access-Control-Allow-Origin", "*");
+                    try {
+                      Uri source = Uri.parse(address).getQueryParameter("u") == null
+                          ? null : Uri.parse(Uri.parse(address).getQueryParameter("u"));
+                      if (source == null) return new WebResourceResponse("text/plain","utf-8",404,"Not Found",headers,new java.io.ByteArrayInputStream(new byte[0]));
+                      String mime = getCarContext().getContentResolver().getType(source);
+                      if (mime == null) mime = "application/octet-stream";
+                      InputStream stream = getCarContext().getContentResolver().openInputStream(source);
+                      return new WebResourceResponse(mime, null, 200, "OK", headers, stream);
+                    } catch (Exception e) {
+                      return new WebResourceResponse("text/plain","utf-8",404,"Not Found",headers,new java.io.ByteArrayInputStream(new byte[0]));
+                    }
+                  }
+                  @Override public void onPageFinished(WebView view, String url) {
+                    super.onPageFinished(view, url);
+                    installCarKeyboard(view);
+                  }"""
+          if needle not in java:
+              raise SystemExit("WebViewClient insertion anchor missing")
+          java = java.replace(needle, replacement, 1)
+          java = java.replace(
+              "try { Intent i = new Intent(context, VideoActivity.class); i.putExtra(\"u\", url); i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(i); } catch (Exception ignored) {}",
+              "try { web.post(() -> web.evaluateJavascript(\"carPlayVideo(\" + JSONObject.quote(url) + \")\", null)); } catch (Exception ignored) {}"
+          )
+          # Native M3U retrieval runs off the WebView UI thread (JavascriptInterface thread).
+          bridge_anchor = """@JavascriptInterface public void openWeb(String url) {
+              web.post(() -> web.loadUrl(url));
+            }"""
+          bridge_add = bridge_anchor + """
+            @JavascriptInterface public String fetchText(String address) {
+              java.net.HttpURLConnection connection = null;
+              try {
+                java.net.URL u = new java.net.URL(address);
+                connection = (java.net.HttpURLConnection) u.openConnection();
+                connection.setConnectTimeout(12000); connection.setReadTimeout(20000);
+                connection.setRequestProperty("User-Agent", "AmeerScreens/1.0");
+                java.io.InputStream in = connection.getInputStream();
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                byte[] buffer = new byte[8192]; int count; int total = 0;
+                while ((count = in.read(buffer)) != -1 && total < 5000000) { out.write(buffer,0,count); total += count; }
+                in.close();
+                return new String(out.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+              } catch (Exception e) { return ""; }
+              finally { if (connection != null) connection.disconnect(); }
+            }"""
+          if bridge_anchor not in java:
+              raise SystemExit("CarBridge openWeb anchor missing")
+          java = java.replace(bridge_anchor, bridge_add, 1)
+          java_path.write_text(java)
           PY
 
       - name: Validate original interface JavaScript
