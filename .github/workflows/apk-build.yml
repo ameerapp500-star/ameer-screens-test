@@ -455,7 +455,7 @@ jobs:
 
           patch("app/src/main/java/com/carscreens/app/CarWebScreen.java", [
               ('import android.provider.MediaStore;','import android.provider.MediaStore;\n          import android.provider.DocumentsContract;','documents contract import'),
-              ('Action.BACK','new Action.Builder().setTitle("رجوع").setOnClickListener(() -> { if (web != null) web.evaluateJavascript("carBack()", null); }).build()','custom back action'),
+              ('Action.BACK','new Action.Builder().setTitle("رجوع").setOnClickListener(() -> { if (web != null) { if (web.canGoBack()) web.goBack(); else web.evaluateJavascript("carBack()", null); } }).build()','custom back action with web history'),
           ])
           patch("app/src/main/assets/index.html", [              ("""function fshow(){FP=[];renderFiles()}""",
                """function fshow(){FP=[];renderFiles()}\nsetInterval(()=>{if(cur==='files'&&!FP.length)renderFiles()},1500)""",
@@ -1311,24 +1311,17 @@ jobs:
             raise SystemExit("Could not connect phone browser controller from MainActivity")
           main_path.write_text(main)
 
-          # Also launch the phone controller when the browser icon is tapped on the car screen.
+          # Car-screen web links must stay inside the car WebView. The phone controller
+          # is launched only by the phone-side MainActivity, never by a car-screen tap.
           car_path = Path("app/src/main/java/com/carscreens/app/CarWebScreen.java")
           car = car_path.read_text()
           pat = re.compile(r'(?s)@JavascriptInterface public void openWeb[(]String url[)] [{].*?}')
           replacement = '''@JavascriptInterface public void openWeb(String url) {
               openWebOnCar(url);
-              try {
-                Intent controller = new Intent(context, BrowserActivity.class);
-                controller.putExtra("u", url);
-                controller.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                context.startActivity(controller);
-              } catch (Exception e) {
-                Log.e("AmeerCarWeb", "Unable to open phone browser controller", e);
-              }
             }'''
           car, count = pat.subn(replacement, car, count=1)
           if count != 1:
-            raise SystemExit("Could not connect phone controller to CarBridge.openWeb")
+            raise SystemExit("Could not keep CarBridge.openWeb on the car display")
           # Keep phone-entered commands from leaving the on-car keyboard covering the page.
           car = car.replace("if(c.type==='url'){window.location.href=c.value;return;}",
                             "if(c.type==='url'){kb.style.display='none';window.location.href=c.value;return;}")
