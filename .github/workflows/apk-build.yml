@@ -584,10 +584,6 @@ jobs:
           if marker not in java:
               raise SystemExit("WebViewClient insertion anchor missing")
           java = java.replace(marker, replacement, 1)
-          java = java.replace(
-              "import android.webkit.WebViewClient;",
-              "import android.webkit.WebViewClient;\\n          import android.webkit.WebResourceRequest;\\n          import android.webkit.WebResourceResponse;\\n          import java.io.InputStream;"
-          )
           # Native M3U retrieval runs off the WebView UI thread (JavascriptInterface thread).
           bridge_marker = "@JavascriptInterface public void openApp(String pkg) {"
           bridge_add = """@JavascriptInterface public String fetchText(String address) {
