@@ -32,6 +32,13 @@ jobs:
       - name: Extract new project
         run: unzip -q ameer-screens-android-auto-ui-update.zip -d extracted
 
+      - name: Upload extracted source for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: ameer-screens-test-source
+          path: extracted/car-screens-main/
+          if-no-files-found: error
+
       - name: Enable AndroidX
         working-directory: extracted/car-screens-main
         run: |
