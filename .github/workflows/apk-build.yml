@@ -974,7 +974,7 @@ jobs:
 
           # Guard the two required behaviors at build time.
           for token in ["openWebOnCar(String url)", "playVideoOnCar(String url)",
-                        "onCheckIsTextEditor() { return false; }", "language==='ar'",
+                        "onCheckIsTextEditor() { return false; }", "arabic=true",
                         "pasteClipboard()", "DefaultMediaSourceFactory sources"]:
               if token not in car: raise SystemExit("Car behavior check failed: " + token)
           PY
