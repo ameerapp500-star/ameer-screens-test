@@ -950,34 +950,26 @@ jobs:
           # to the active car surface instead of always opening phone Activities.
           main_path = Path("app/src/main/java/com/carscreens/app/MainActivity.java")
           main = main_path.read_text()
-          old_open = """    @JavascriptInterface public void openWeb(String u) {
-              Intent i = new Intent(MainActivity.this, BrowserActivity.class);
-              i.putExtra("u", u);
-              startActivity(i);
-            }"""
-          new_open = """    @JavascriptInterface public void openWeb(String u) {
+          def route_method(source, name, signature, body):
+              pattern = re.compile(r"(?m)^\\s*@JavascriptInterface public void " + name + r"\\(" + signature + r"\\) \\{.*?^\\s*\\}", re.S)
+              if "CarWebScreen." + ("openWebOnCar" if name == "openWeb" else "playVideoOnCar") + "(" in source:
+                  return source
+              if not pattern.search(source):
+                  raise SystemExit("MainActivity bridge method not found: " + name)
+              return pattern.sub(body, source, count=1)
+
+          main = route_method(main, "openWeb", r"String u", """    @JavascriptInterface public void openWeb(String u) {
               if (CarWebScreen.openWebOnCar(u)) return;
               Intent i = new Intent(MainActivity.this, BrowserActivity.class);
               i.putExtra("u", u);
               startActivity(i);
-            }"""
-          if "CarWebScreen.openWebOnCar(u)" not in main:
-              if old_open not in main: raise SystemExit("MainActivity openWeb bridge missing")
-              main = main.replace(old_open, new_open, 1)
-          old_play = """    @JavascriptInterface public void playVideo(String u) {
-              Intent i = new Intent(MainActivity.this, VideoActivity.class);
-              i.putExtra("u", u);
-              startActivity(i);
-            }"""
-          new_play = """    @JavascriptInterface public void playVideo(String u) {
+            }""")
+          main = route_method(main, "playVideo", r"String u", """    @JavascriptInterface public void playVideo(String u) {
               if (CarWebScreen.playVideoOnCar(u)) return;
               Intent i = new Intent(MainActivity.this, VideoActivity.class);
               i.putExtra("u", u);
               startActivity(i);
-            }"""
-          if "CarWebScreen.playVideoOnCar(u)" not in main:
-              if old_play not in main: raise SystemExit("MainActivity playVideo bridge missing")
-              main = main.replace(old_play, new_play, 1)
+            }""")
           main_path.write_text(main)
 
           # Guard the two required behaviors at build time.
