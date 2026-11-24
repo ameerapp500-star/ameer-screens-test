@@ -574,7 +574,7 @@ jobs:
           # Keep media playback in WebView by serving persisted SAF/MediaStore URIs through the app bridge URL.
           java = java.replace(
               "import android.webkit.WebViewClient;",
-              "import android.webkit.WebViewClient;" + chr(10) + "import android.webkit.WebResourceRequest;" + chr(10) + "import android.webkit.WebResourceResponse;" + chr(10) + "import android.content.res.AssetFileDescriptor;"
+              "import android.webkit.WebViewClient;" + chr(10) + "import android.webkit.WebResourceRequest;" + chr(10) + "import android.webkit.WebResourceResponse;" + chr(10) + "import android.content.res.AssetFileDescriptor;" + chr(10) + "import java.io.InputStream;"
           )
           marker = "@Override public void onPageFinished(WebView view, String url) {"
           replacement = """@Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
