@@ -134,6 +134,7 @@ jobs:
           import android.os.Build;
           import android.os.Handler;
           import android.os.Looper;
+          import android.util.Log;
           import android.provider.MediaStore;
           import android.provider.Settings;
           import android.view.Display;
@@ -173,7 +174,7 @@ jobs:
                 main.post(() -> attach(c));
               }
               @Override public void onSurfaceDestroyed(SurfaceContainer c) {
-                main.post(() -> { detach(); if (c.getSurface() != null) c.getSurface().release(); });
+                main.post(() -> detach());
               }
               @Override public void onClick(float x, float y) {
                 main.post(() -> dispatchTap(x, y));
@@ -198,7 +199,7 @@ jobs:
               try {
                 DisplayManager dm = (DisplayManager) getCarContext().getSystemService(Context.DISPLAY_SERVICE);
                 virtualDisplay = dm.createVirtualDisplay("AmeerScreensCar", c.getWidth(), c.getHeight(),
-                    c.getDpi(), surface, DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC);
+                    c.getDpi(), surface, DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION);
                 if (virtualDisplay == null) return;
                 Display display = virtualDisplay.getDisplay();
                 presentation = new Presentation(getCarContext(), display);
@@ -220,7 +221,7 @@ jobs:
                 presentation.setContentView(web);
                 presentation.show();
                 web.loadUrl("file:///android_asset/index.html");
-              } catch (Throwable t) { detach(); }
+              } catch (Throwable t) { Log.e("AmeerCarWeb", "Failed to attach WebView to car surface", t); detach(); }
             }
 
             private void detach() {
