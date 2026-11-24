@@ -1,4 +1,5 @@
 
+# Build 72 - phone-to-car remote browser input
 name: Build APK
 
 on:
@@ -447,8 +448,7 @@ jobs:
               }
               return out.toString();
             }''','real SAF directory listing')
-          ])          patch("app/src/main/assets/index.html", [
-              ("""function fshow(){FP=[];renderFiles()}""",
+          ])          patch("app/src/main/assets/index.html", [              ("""function fshow(){FP=[];renderFiles()}""",
                """function fshow(){FP=[];renderFiles()}\nsetInterval(()=>{if(cur==='files'&&!FP.length)renderFiles()},1500)""",
                'refresh saved folders after picker'),
               ("""function home(){$('app').style.display='none';$('home').style.display='block';document.querySelectorAll('video,audio').forEach(m=>m.pause());$('mv').innerHTML='';$('fv').innerHTML=''}""",
@@ -897,8 +897,7 @@ jobs:
                   playerView.setPlayer(carPlayer);
                   carPlayer.setAudioAttributes(new AudioAttributes.Builder()                      .setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true);
                   carPlayer.addListener(new Player.Listener() {                    @Override public void onPlayerError(PlaybackException error) {
-                      Toast.makeText(context, "تعذّر تشغيل القناة أو الفيديو: " + error.getErrorCodeName(), Toast.LENGTH_LONG).show();
-                      Log.e("AmeerCarWeb", "Media3 playback error", error);
+                      Toast.makeText(context, "تعذّر تشغيل القناة أو الفيديو: " + error.getErrorCodeName(), Toast.LENGTH_LONG).show();                      Log.e("AmeerCarWeb", "Media3 playback error", error);
                     }
                   });
                   web.setVisibility(View.GONE);
