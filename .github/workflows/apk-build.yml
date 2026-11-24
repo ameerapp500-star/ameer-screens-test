@@ -263,7 +263,6 @@ jobs:
                   .build();
             }
 
-            @Override public void onScreen退出() { }
           }
 
           final class CarBridge {
