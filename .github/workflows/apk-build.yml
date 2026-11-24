@@ -377,7 +377,7 @@ jobs:
           patch("app/src/main/java/com/carscreens/app/CarWebScreen.java", [
               ('import android.content.Intent;','import android.content.Intent;\n          import android.content.SharedPreferences;','shared preferences import'),
               ('import android.provider.MediaStore;','import android.provider.MediaStore;\n          import android.provider.DocumentsContract;','documents contract import'),
-              ('    private int scrollX, scrollY;','''    private int scrollX, scrollY;
+              ('private int scrollX, scrollY;','''private int scrollX, scrollY;
             private final SharedPreferences.OnSharedPreferenceChangeListener folderListener =
                 (prefs, key) -> {
                   if ("l".equals(key)) main.post(() -> {
