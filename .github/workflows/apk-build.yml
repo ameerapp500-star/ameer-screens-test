@@ -546,13 +546,13 @@ jobs:
               "presentation.show();\n                web.requestFocus();\n                web.loadUrl"
           )
           java = java.replace(
-              "long now = android.os.SystemClock.uptimeMillis();\n              MotionEvent down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, x, y, 0);",
-              "float sx = current == null ? x : x * web.getWidth() / Math.max(1f, current.getWidth());\n              float sy = current == null ? y : y * web.getHeight() / Math.max(1f, current.getHeight());\n              long now = android.os.SystemClock.uptimeMillis();\n              MotionEvent down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, sx, sy, 0);"
+              "long now = android.os.SystemClock.uptimeMillis();",
+              "float sx = current == null ? x : x * web.getWidth() / Math.max(1f, current.getWidth());\\n              float sy = current == null ? y : y * web.getHeight() / Math.max(1f, current.getHeight());\\n              long now = android.os.SystemClock.uptimeMillis();"
           )
-          java = java.replace(
-              "MotionEvent up = MotionEvent.obtain(now, now + 60, MotionEvent.ACTION_UP, x, y, 0);\n              presentation.getWindow().getDecorView().dispatchTouchEvent(down);\n              presentation.getWindow().getDecorView().dispatchTouchEvent(up);",
-              "MotionEvent up = MotionEvent.obtain(now, now + 60, MotionEvent.ACTION_UP, sx, sy, 0);\n              web.dispatchTouchEvent(down);\n              web.dispatchTouchEvent(up);"
-          )
+          java = java.replace("MotionEvent.ACTION_DOWN, x, y, 0", "MotionEvent.ACTION_DOWN, sx, sy, 0")
+          java = java.replace("MotionEvent.ACTION_UP, x, y, 0", "MotionEvent.ACTION_UP, sx, sy, 0")
+          java = java.replace("presentation.getWindow().getDecorView().dispatchTouchEvent(down);", "web.dispatchTouchEvent(down);")
+          java = java.replace("presentation.getWindow().getDecorView().dispatchTouchEvent(up);", "web.dispatchTouchEvent(up);")
           if "web.dispatchTouchEvent(down);" not in java:
               raise SystemExit("touch dispatch patch failed")
           # Keep media playback in WebView by serving persisted SAF/MediaStore URIs through the app bridge URL.
@@ -560,19 +560,16 @@ jobs:
               "import android.webkit.WebViewClient;",
               "import android.webkit.WebViewClient;\n          import android.webkit.WebResourceRequest;\n          import android.webkit.WebResourceResponse;\n          import java.io.InputStream;\n          import java.util.HashMap;"
           )
-          needle = """@Override public void onPageFinished(WebView view, String url) {
-                    super.onPageFinished(view, url);
-                    installCarKeyboard(view);
-                  }"""
+          marker = "@Override public void onPageFinished(WebView view, String url) {"
           replacement = """@Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                     String address = request.getUrl().toString();
                     if (!address.startsWith("https://localfile.invalid/")) return null;
                     Map<String,String> headers = new HashMap<>();
                     headers.put("Access-Control-Allow-Origin", "*");
                     try {
-                      Uri source = Uri.parse(address).getQueryParameter("u") == null
-                          ? null : Uri.parse(Uri.parse(address).getQueryParameter("u"));
-                      if (source == null) return new WebResourceResponse("text/plain","utf-8",404,"Not Found",headers,new java.io.ByteArrayInputStream(new byte[0]));
+                      String raw = Uri.parse(address).getQueryParameter("u");
+                      if (raw == null) throw new IllegalArgumentException("Missing media URI");
+                      Uri source = Uri.parse(raw);
                       String mime = getCarContext().getContentResolver().getType(source);
                       if (mime == null) mime = "application/octet-stream";
                       InputStream stream = getCarContext().getContentResolver().openInputStream(source);
@@ -581,23 +578,17 @@ jobs:
                       return new WebResourceResponse("text/plain","utf-8",404,"Not Found",headers,new java.io.ByteArrayInputStream(new byte[0]));
                     }
                   }
-                  @Override public void onPageFinished(WebView view, String url) {
-                    super.onPageFinished(view, url);
-                    installCarKeyboard(view);
-                  }"""
-          if needle not in java:
+                  @Override public void onPageFinished(WebView view, String url) {"""
+          if marker not in java:
               raise SystemExit("WebViewClient insertion anchor missing")
-          java = java.replace(needle, replacement, 1)
+          java = java.replace(marker, replacement, 1)
           java = java.replace(
-              "try { Intent i = new Intent(context, VideoActivity.class); i.putExtra(\"u\", url); i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(i); } catch (Exception ignored) {}",
-              "try { web.post(() -> web.evaluateJavascript(\"carPlayVideo(\" + JSONObject.quote(url) + \")\", null)); } catch (Exception ignored) {}"
+              "import android.webkit.WebViewClient;",
+              "import android.webkit.WebViewClient;\\n          import android.webkit.WebResourceRequest;\\n          import android.webkit.WebResourceResponse;\\n          import java.io.InputStream;"
           )
           # Native M3U retrieval runs off the WebView UI thread (JavascriptInterface thread).
-          bridge_anchor = """@JavascriptInterface public void openWeb(String url) {
-              web.post(() -> web.loadUrl(url));
-            }"""
-          bridge_add = bridge_anchor + """
-            @JavascriptInterface public String fetchText(String address) {
+          bridge_marker = "@JavascriptInterface public void openApp(String pkg) {"
+          bridge_add = """@JavascriptInterface public String fetchText(String address) {
               java.net.HttpURLConnection connection = null;
               try {
                 java.net.URL u = new java.net.URL(address);
@@ -612,10 +603,11 @@ jobs:
                 return new String(out.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
               } catch (Exception e) { return ""; }
               finally { if (connection != null) connection.disconnect(); }
-            }"""
-          if bridge_anchor not in java:
-              raise SystemExit("CarBridge openWeb anchor missing")
-          java = java.replace(bridge_anchor, bridge_add, 1)
+            }
+            """
+          if bridge_marker not in java:
+              raise SystemExit("CarBridge insertion anchor missing")
+          java = java.replace(bridge_marker, bridge_add + bridge_marker, 1)
           java_path.write_text(java)
           PY
 
