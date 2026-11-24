@@ -210,7 +210,7 @@ jobs:
                 s.setMediaPlaybackRequiresUserGesture(false);
                 s.setAllowFileAccess(true);
                 s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-                web.addJavascriptInterface(new CarBridge(getCarContext(), web), "Android");
+                web.addJavascriptInterface(new CarBridge(getCarContext(), web, main, playerView), "Android");
                 web.setWebChromeClient(new WebChromeClient());
                 web.setWebViewClient(new WebViewClient() {
                   @Override public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest request) {
@@ -288,7 +288,12 @@ jobs:
           final class CarBridge {
             private final CarContext context;
             private final WebView web;
-            CarBridge(CarContext c, WebView w) { context = c; web = w; }
+            private final Handler main;
+            private final PlayerView playerView;
+            private ExoPlayer carPlayer;
+            CarBridge(CarContext c, WebView w, Handler h, PlayerView p) {
+              context = c; web = w; main = h; playerView = p;
+            }
 
             @JavascriptInterface public String deviceId() {
               String id = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
