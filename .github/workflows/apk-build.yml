@@ -109,7 +109,7 @@ jobs:
               '  <uses-permission android:name="androidx.car.app.NAVIGATION_TEMPLATES"/>',
           ):
               if permission not in xml:
-                  xml = xml.replace('<application ', permission + "\\n  <application ', 1)
+                  xml = xml.replace('<application ', permission + "\n  <application ', 1)
           manifest.write_text(xml)
 
           service = Path("app/src/main/java/com/carscreens/app/MapsCarAppService.java")
@@ -173,8 +173,7 @@ jobs:
                 main.post(() -> attach(c));
               }
               @Override public void onSurfaceDestroyed(SurfaceContainer c) {
-                main.post(() -> detach());
-                if (c.getSurface() != null) c.getSurface().release();
+                main.post(() -> { detach(); if (c.getSurface() != null) c.getSurface().release(); });
               }
               @Override public void onClick(float x, float y) {
                 main.post(() -> dispatchTap(x, y));
