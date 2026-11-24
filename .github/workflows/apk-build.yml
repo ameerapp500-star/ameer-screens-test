@@ -431,11 +431,25 @@ jobs:
           p = Path("app/src/main/assets/index.html")
           source = p.read_text()
           anchor = "function renderApps(){"
-          addition = "\\n  if(appKey==='maps' && !S('ap_maps')) S('ap_maps',[{n:'Waze',p:'com.waze'},{n:'Google Maps',p:'com.google.android.apps.maps'},{n:'دربونة',p:'iq.darbuna.app'}]);"
+          addition = "\n  if(appKey==='maps' && !S('ap_maps')) S('ap_maps',[{n:'Waze',p:'com.waze'},{n:'Google Maps',p:'com.google.android.apps.maps'},{n:'دربونة',p:'iq.darbuna.app'}]);"
           if anchor not in source:
               raise SystemExit("renderApps anchor missing")
           p.write_text(source.replace(anchor, anchor + addition, 1))
           PY
+
+      - name: Validate original interface JavaScript
+        working-directory: extracted/car-screens-main
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path("app/src/main/assets/index.html").read_text()
+          scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
+          if not scripts:
+              raise SystemExit("No JavaScript found in index.html")
+          Path("/tmp/ameer-index-check.js").write_text("\\n".join(scripts))
+          PY
+          node --check /tmp/ameer-index-check.js
 
       - name: Build APK
         working-directory: extracted/car-screens-main
