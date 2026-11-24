@@ -776,13 +776,13 @@ jobs:
           if "private static volatile CarBridge activeBridge;" not in car:
               anchor = "private int scrollX, scrollY;"
               if anchor not in car: raise SystemExit("CarWebScreen fields missing")
-              car = car.replace(anchor, anchor + "\\n            private static volatile CarBridge activeBridge;", 1)
+              car = car.replace(anchor, anchor + chr(10) + "            private static volatile CarBridge activeBridge;", 1)
 
           register_old = 'web.addJavascriptInterface(new CarBridge(getCarContext(), web, main, playerView), "Android");'
           if "activeBridge = bridge;" not in car:
               if register_old not in car: raise SystemExit("Car bridge registration missing")
               car = car.replace(register_old,
-                  'CarBridge bridge = new CarBridge(getCarContext(), web, main, playerView);\\n                activeBridge = bridge;\\n                web.addJavascriptInterface(bridge, "Android");', 1)
+                  'CarBridge bridge = new CarBridge(getCarContext(), web, main, playerView);' + chr(10) + '                activeBridge = bridge;' + chr(10) + '                web.addJavascriptInterface(bridge, "Android");', 1)
 
           if "static boolean openWebOnCar(String url)" not in car:
               idx = car.find("private void detach() {")
@@ -806,7 +806,7 @@ jobs:
 
           detach_anchor = "private void detach() {"
           if "CarBridge oldBridge = activeBridge;" not in car:
-              car = car.replace(detach_anchor, detach_anchor + "\\n              CarBridge oldBridge = activeBridge;\\n              activeBridge = null;\\n              if (oldBridge != null) oldBridge.release();", 1)
+              car = car.replace(detach_anchor, detach_anchor + chr(10) + "              CarBridge oldBridge = activeBridge;" + chr(10) + "              activeBridge = null;" + chr(10) + "              if (oldBridge != null) oldBridge.release();", 1)
 
           # The WebView itself owns all web navigation on the car surface.
           old_web = """@JavascriptInterface public void openWeb(String url) {
@@ -849,7 +849,7 @@ jobs:
               "import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;"
           ]:
               if imp not in car:
-                  car = car.replace("import android.view.Surface;", "import android.view.Surface;\n" + imp, 1)
+                  car = car.replace("import android.view.Surface;", "import android.view.Surface;" + chr(10) + imp, 1)
 
           # A custom Arabic/English keyboard is rendered in the car WebView.
           if "onCheckIsTextEditor() { return false; }" not in car:
