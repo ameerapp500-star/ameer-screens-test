@@ -96,6 +96,252 @@ jobs:
               manifest.write_text(xml)
           PY
 
+      - name: Add custom Android Auto surface and original web interface
+        working-directory: extracted/car-screens-main
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          manifest = Path("app/src/main/AndroidManifest.xml")
+          xml = manifest.read_text()
+          for permission in (
+              '  <uses-permission android:name="androidx.car.app.ACCESS_SURFACE"/>',
+              '  <uses-permission android:name="androidx.car.app.NAVIGATION_TEMPLATES"/>',
+          ):
+              if permission not in xml:
+                  xml = xml.replace('<application ', permission + "\\n  <application ', 1)
+          manifest.write_text(xml)
+
+          service = Path("app/src/main/java/com/carscreens/app/MapsCarAppService.java")
+          src = service.read_text()
+          src = src.replace("return new HomeScreen(getCarContext());", "return new CarWebScreen(getCarContext());")
+          service.write_text(src)
+
+          target = Path("app/src/main/java/com/carscreens/app/CarWebScreen.java")
+          target.write_text(r'''package com.carscreens.app;
+
+          import android.app.Presentation;
+          import android.content.ClipData;
+          import android.content.ClipboardManager;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.pm.ResolveInfo;
+          import android.database.Cursor;
+          import android.graphics.Rect;
+          import android.hardware.display.DisplayManager;
+          import android.hardware.display.VirtualDisplay;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.provider.MediaStore;
+          import android.provider.Settings;
+          import android.view.Display;
+          import android.view.MotionEvent;
+          import android.view.Surface;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import androidx.car.app.AppManager;
+          import androidx.car.app.CarContext;
+          import androidx.car.app.Screen;
+          import androidx.car.app.SurfaceCallback;
+          import androidx.car.app.SurfaceContainer;
+          import androidx.car.app.model.Action;
+          import androidx.car.app.model.ActionStrip;
+          import androidx.car.app.model.Template;
+          import androidx.car.app.navigation.model.NavigationTemplate;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+          import java.util.Map;
+          import java.util.HashMap;
+
+          /** Renders the existing Ameer Screens HTML interface on Android Auto's navigation surface. */
+          public final class CarWebScreen extends Screen {
+            private final Handler main = new Handler(Looper.getMainLooper());
+            private SurfaceContainer current;
+            private VirtualDisplay virtualDisplay;
+            private Presentation presentation;
+            private WebView web;
+            private int scrollX, scrollY;
+
+            private final SurfaceCallback surfaceCallback = new SurfaceCallback() {
+              @Override public void onSurfaceAvailable(SurfaceContainer c) {
+                current = c;
+                main.post(() -> attach(c));
+              }
+              @Override public void onSurfaceDestroyed(SurfaceContainer c) {
+                main.post(() -> detach());
+                if (c.getSurface() != null) c.getSurface().release();
+              }
+              @Override public void onClick(float x, float y) {
+                main.post(() -> dispatchTap(x, y));
+              }
+              @Override public void onScroll(float dx, float dy) {
+                main.post(() -> dispatchDrag(dx, dy));
+              }
+              @Override public void onFling(float vx, float vy) {
+                main.post(() -> dispatchDrag(vx > 0 ? -90 : 90, vy > 0 ? -90 : 90));
+              }
+            };
+
+            CarWebScreen(CarContext context) {
+              super(context);
+              getCarContext().getCarService(AppManager.class).setSurfaceCallback(surfaceCallback);
+            }
+
+            private void attach(SurfaceContainer c) {
+              detach();
+              Surface surface = c.getSurface();
+              if (surface == null || !surface.isValid()) return;
+              try {
+                DisplayManager dm = (DisplayManager) getCarContext().getSystemService(Context.DISPLAY_SERVICE);
+                virtualDisplay = dm.createVirtualDisplay("AmeerScreensCar", c.getWidth(), c.getHeight(),
+                    c.getDpi(), surface, DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC);
+                if (virtualDisplay == null) return;
+                Display display = virtualDisplay.getDisplay();
+                presentation = new Presentation(getCarContext(), display);
+                web = new WebView(presentation);
+                WebSettings s = web.getSettings();
+                s.setJavaScriptEnabled(true);
+                s.setDomStorageEnabled(true);
+                s.setMediaPlaybackRequiresUserGesture(false);
+                s.setAllowFileAccess(true);
+                s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+                web.addJavascriptInterface(new CarBridge(getCarContext(), web), "Android");
+                web.setWebChromeClient(new WebChromeClient());
+                web.setWebViewClient(new WebViewClient() {
+                  @Override public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest request) {
+                    String u = request.getUrl().toString();
+                    return !(u.startsWith("http://") || u.startsWith("https://") || u.startsWith("file:"));
+                  }
+                });
+                presentation.setContentView(web);
+                presentation.show();
+                web.loadUrl("file:///android_asset/index.html");
+              } catch (Throwable t) { detach(); }
+            }
+
+            private void detach() {
+              try { if (web != null) { web.stopLoading(); web.destroy(); } } catch (Exception ignored) {}
+              web = null;
+              try { if (presentation != null) presentation.dismiss(); } catch (Exception ignored) {}
+              presentation = null;
+              try { if (virtualDisplay != null) virtualDisplay.release(); } catch (Exception ignored) {}
+              virtualDisplay = null;
+            }
+
+            private void dispatchTap(float x, float y) {
+              if (presentation == null || web == null) return;
+              long now = android.os.SystemClock.uptimeMillis();
+              MotionEvent down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, x, y, 0);
+              MotionEvent up = MotionEvent.obtain(now, now + 60, MotionEvent.ACTION_UP, x, y, 0);
+              presentation.getWindow().getDecorView().dispatchTouchEvent(down);
+              presentation.getWindow().getDecorView().dispatchTouchEvent(up);
+              down.recycle(); up.recycle();
+            }
+
+            private void dispatchDrag(float dx, float dy) {
+              if (presentation == null || web == null) return;
+              float x = Math.max(2, web.getWidth() * .5f);
+              float y = Math.max(2, web.getHeight() * .5f);
+              long now = android.os.SystemClock.uptimeMillis();
+              MotionEvent d = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, x, y, 0);
+              MotionEvent m = MotionEvent.obtain(now, now + 70, MotionEvent.ACTION_MOVE, x - dx, y - dy, 0);
+              MotionEvent u = MotionEvent.obtain(now, now + 140, MotionEvent.ACTION_UP, x - dx, y - dy, 0);
+              presentation.getWindow().getDecorView().dispatchTouchEvent(d);
+              presentation.getWindow().getDecorView().dispatchTouchEvent(m);
+              presentation.getWindow().getDecorView().dispatchTouchEvent(u);
+              d.recycle(); m.recycle(); u.recycle();
+            }
+
+            @Override public Template onGetTemplate() {
+              return new NavigationTemplate.Builder()
+                  .setActionStrip(new ActionStrip.Builder().addAction(Action.BACK).build())
+                  .build();
+            }
+
+            @Override public void onScreen退出() { }
+          }
+
+          final class CarBridge {
+            private final CarContext context;
+            private final WebView web;
+            CarBridge(CarContext c, WebView w) { context = c; web = w; }
+
+            @JavascriptInterface public String deviceId() {
+              String id = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
+              return id == null ? "UNKNOWN" : id.toUpperCase();
+            }
+            @JavascriptInterface public void copy(String value) {
+              ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+              cm.setPrimaryClip(ClipData.newPlainText("Ameer Screens", value));
+            }
+            @JavascriptInterface public void openWeb(String url) {
+              web.post(() -> web.loadUrl(url));
+            }
+            @JavascriptInterface public void openApp(String pkg) {
+              try { Intent i = context.getPackageManager().getLaunchIntentForPackage(pkg); if (i != null) { i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(i); } } catch (Exception ignored) {}
+            }
+            @JavascriptInterface public void saveMapApps(String json) {
+              context.getSharedPreferences("ameer_maps", 0).edit().putString("apps", json).apply();
+            }
+            @JavascriptInterface public String listApps() {
+              JSONArray out = new JSONArray();
+              try {
+                Intent q = new Intent(Intent.ACTION_MAIN); q.addCategory(Intent.CATEGORY_LAUNCHER);
+                for (ResolveInfo r : context.getPackageManager().queryIntentActivities(q, 0)) {
+                  JSONObject o = new JSONObject(); o.put("n", r.loadLabel(context.getPackageManager()).toString());
+                  o.put("p", r.activityInfo.packageName); out.put(o);
+                }
+              } catch (Exception ignored) {}
+              return out.toString();
+            }
+            @JavascriptInterface public String listMedia(String kind) {
+              JSONArray out = new JSONArray();
+              try {
+                Uri base = "audio".equals(kind) ? MediaStore.Audio.Media.EXTERNAL_CONTENT_URI :
+                    ("video".equals(kind) ? MediaStore.Video.Media.EXTERNAL_CONTENT_URI : MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                String name = MediaStore.MediaColumns.DISPLAY_NAME;
+                Cursor c = context.getContentResolver().query(base, new String[]{MediaStore.MediaColumns._ID, name},
+                    null, null, MediaStore.MediaColumns.DATE_ADDED + " DESC");
+                if (c != null) {
+                  int n = 0;
+                  while (c.moveToNext() && n++ < 300) {
+                    JSONObject o = new JSONObject(); o.put("n", c.getString(1));
+                    o.put("u", Uri.withAppendedPath(base, c.getString(0)).toString()); out.put(o);
+                  }
+                  c.close();
+                }
+              } catch (Exception ignored) {}
+              return out.toString();
+            }
+            @JavascriptInterface public String folders() { return context.getSharedPreferences("f", 0).getString("l", "[]"); }
+            @JavascriptInterface public void removeFolder(String t) {
+              try {
+                JSONArray a = new JSONArray(folders()), n = new JSONArray();
+                for (int i=0;i<a.length();i++) if (!a.getJSONObject(i).optString("t").equals(t)) n.put(a.getJSONObject(i));
+                context.getSharedPreferences("f",0).edit().putString("l",n.toString()).apply();
+              } catch (Exception ignored) {}
+            }
+            @JavascriptInterface public String listDir(String tree, String doc) { return "[]"; }
+            @JavascriptInterface public void pickFolder() {
+              Intent i = new Intent(context, MainActivity.class);
+              i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+              i.putExtra("ameer_pick_folder", true); context.startActivity(i);
+            }
+            @JavascriptInterface public void playVideo(String url) {
+              try { Intent i = new Intent(context, VideoActivity.class); i.putExtra("u", url); i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(i); } catch (Exception ignored) {}
+            }
+            @JavascriptInterface public void view(String uri, String mime) {
+              try { Intent i = new Intent(Intent.ACTION_VIEW); i.setDataAndType(Uri.parse(uri), mime == null || mime.isEmpty() ? "*/*" : mime); i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION); context.startActivity(i); } catch (Exception ignored) {}
+            }
+          }
+          ''')
+          PY
+
       - name: Build APK
         working-directory: extracted/car-screens-main
         run: gradle :app:assembleDebug
