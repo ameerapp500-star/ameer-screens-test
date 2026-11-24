@@ -30,11 +30,10 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Extract new project
-        run: unzip -q ameer-screens-android-auto-ui-update.zip -d extracted
-        # Load the reference UI before subsequent build-time patches are applied.
-        # This prevents the final asset copy from erasing Android Auto/IPTV fixes.
-        
+      - name: Extract project and load reference dashboard before patches
+        run: |
+          unzip -q ameer-screens-android-auto-ui-update.zip -d extracted
+          cp ameer-ui.html extracted/car-screens-main/app/src/main/assets/index.html
 
 
       - name: Upload extracted source for inspection
