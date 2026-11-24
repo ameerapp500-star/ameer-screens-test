@@ -469,6 +469,7 @@ jobs:
           html = re.sub(r'\s*<div id="mapsweb"[^>]*>.*?</div>\s*', '\n', html, flags=re.S)
           html = html.replace("let cur='',appKey='maps',tvMode='live';", "let cur='',appKey='apps',tvMode='live';")
           html = html.replace("if(k==='maps'||k==='apps')", "if(k==='apps')")
+          html = html.replace("show('apps',t[1]);$('mapsweb').style.display=k==='maps'?'block':'none';renderApps();return", "show('apps',t[1]);renderApps();return")
           html = html.replace("if(appKey==='maps' && A.saveMapApps) A.saveMapApps(JSON.stringify(a));", "")
           html = html.replace("if(appKey==='maps' && A.saveMapApps)A.saveMapApps(JSON.stringify(a));", "")
           a = html.find("function renderApps(){")
@@ -485,52 +486,65 @@ jobs:
 
           # Play videos inside the same WebView surface, not in a phone Activity.
           a = html.find("function player(box,u,m){")
-          b = html.find("\nfunction loadMedia()", a)
+          b = html.find("\\nfunction loadMedia()", a)
           if a < 0 or b < 0:
               raise SystemExit("player function bounds missing")
           html = html[:a] + """function player(box,u,m){
             box.innerHTML='';
             const t=m.startsWith('video')?'video':m.startsWith('audio')?'audio':'img';
             const e=document.createElement(t);
-            e.src=FU(u);
+            e.controls=t!=='img';e.preload='auto';e.autoplay=true;
             if(t==='img'){e.style.cssText='width:100%;border-radius:14px'}
-            else{
-              e.controls=true;e.autoplay=true;e.preload='metadata';
-              if(t==='video'){e.playsInline=true;e.setAttribute('playsinline','');e.style.cssText='width:100%;max-height:68vh;background:#000;border-radius:14px'}
-              e.addEventListener('error',()=>{const p=document.createElement('p');p.textContent='تعذّر تشغيل الملف داخل الشاشة؛ قد يكون الترميز غير مدعوم.';box.appendChild(p)});
-              const play=e.play();if(play&&play.catch)play.catch(()=>{});
-            }
+            else if(t==='video'){e.playsInline=true;e.setAttribute('playsinline','');e.style.cssText='width:100%;max-height:68vh;background:#000;border-radius:14px'}
+            e.addEventListener('error',()=>{const p=document.createElement('p');p.textContent='تعذّر فتح الفيديو من هذا المجلد أو أن صيغة الملف غير مدعومة.';box.appendChild(p)});
             box.appendChild(e);
+            e.src=FU(u);
+            if(t!=='img'){e.load();const play=e.play();if(play&&play.catch)play.catch(()=>{});}
           }
           """ + html[b:]
 
           # Improve M3U parsing and HLS/native playback fallback with visible errors.
           a = html.find("function playUrl(u,id){")
-          b = html.find("\nfunction parseM3u", a)
+          b = html.find("\\nfunction addList", a)
           if a < 0 or b < 0:
-              raise SystemExit("playUrl bounds missing")
+              raise SystemExit("IPTV function bounds missing")
           html = html[:a] + """let activeHls=null;
           function playUrl(u,id){
             const v=$(id);u=(u||'').trim();if(!u)return;
             if(activeHls){try{activeHls.destroy()}catch(e){}activeHls=null}
+            const old=$('tvError');if(old)old.remove();
             v.pause();v.removeAttribute('src');v.load();v.controls=true;v.playsInline=true;v.setAttribute('playsinline','');
-            v.onerror=()=>{const old=$('tvError');if(old)old.remove();const p=document.createElement('p');p.id='tvError';p.textContent='تعذّر تشغيل القناة: تحقق من الرابط أو توافق البث والترميز.';$('chs').prepend(p)};
+            v.onerror=()=>{const p=document.createElement('p');p.id='tvError';p.textContent='تعذّر تشغيل القناة: افحص رابط البث أو صلاحية الاشتراك أو توافق الترميز.';$('chs').prepend(p)};
             const hlsLike=/\\.m3u8?(?:$|[?#])/i.test(u)||/m3u8/i.test(u);
             if(hlsLike&&window.Hls&&Hls.isSupported()){
-              activeHls=new Hls({enableWorker:true,lowLatencyMode:false});
-              activeHls.loadSource(u);activeHls.attachMedia(v);
+              activeHls=new Hls({enableWorker:false,lowLatencyMode:false,backBufferLength:30});
+              activeHls.attachMedia(v);
+              activeHls.on(Hls.Events.MEDIA_ATTACHED,()=>activeHls&&activeHls.loadSource(u));
               activeHls.on(Hls.Events.ERROR,(ev,data)=>{if(data.fatal){if(data.type===Hls.ErrorTypes.NETWORK_ERROR)activeHls.startLoad();else if(data.type===Hls.ErrorTypes.MEDIA_ERROR)activeHls.recoverMediaError();else{try{activeHls.destroy()}catch(e){}activeHls=null;v.src=u;v.play().catch(()=>{})}}});
-            }else{
-              if(hlsLike&&v.canPlayType('application/vnd.apple.mpegurl'))v.src=u;
-              else v.src=u;
-            }
+            }else v.src=u;
             v.play().catch(()=>{});
-          }""" + html[b:]
-
-          # Prefer native bridge download for M3U lists to avoid WebView CORS failures.
+          }
+          let m3uBase='';
+          function parseM3u(t,base){
+            const out=[];let name='',logo='',group='';
+            (t||'').replace(/^\\uFEFF/,'').split(/\\r?\\n/).forEach(line=>{
+              const l=line.trim();if(!l)return;
+              if(l.startsWith('#EXTINF')){
+                const comma=l.lastIndexOf(',');
+                name=comma>=0?l.slice(comma+1).trim():'';
+                const nm=l.match(/tvg-name=[\\"']([^\\"']+)/i);if(!name&&nm)name=nm[1];
+                const lg=l.match(/tvg-logo=[\\"']([^\\"']+)/i);logo=lg?lg[1]:'';
+                const gp=l.match(/group-title=[\\"']([^\\"']+)/i);group=gp?gp[1]:'';
+              }else if(!l.startsWith('#')){
+                let u=l;try{if(base)u=new URL(l,base).href}catch(e){}
+                out.push({n:name||l,u,logo,group});name='';logo='';group='';
+              }
+            });return out;
+          }
+          """ + html[b:]
           html = html.replace(
-            "async function addUrl(){try{const t=await(await fetch($('m3url').value.trim())).text();addList(parseM3u(t));$('m3url').value=''}catch(e){alert('تعذّر تحميل الرابط. الصق محتوى القائمة بدلاً منه.')}}",
-            "async function addUrl(){try{const u=$('m3url').value.trim();const t=A.fetchText?A.fetchText(u):await(await fetch(u)).text();addList(parseM3u(t));$('m3url').value=''}catch(e){alert('تعذّر تحميل القائمة. تحقق من الرابط أو الصق محتواها.')}}"
+            "async function addUrl(){try{const u=$('m3url').value.trim();const t=A.fetchText?A.fetchText(u):await(await fetch(u)).text();addList(parseM3u(t));$('m3url').value=''}catch(e){alert('تعذّر تحميل القائمة. تحقق من الرابط أو الصق محتواها.')}}",
+            "async function addUrl(){try{const u=$('m3url').value.trim();if(!u)throw 0;const t=A.fetchText?A.fetchText(u):await(await fetch(u)).text();if(!t||!t.trim())throw 0;const l=parseM3u(t,u);if(!l.length)throw 0;addList(l);$('m3url').value=''}catch(e){alert('تعذّر تحميل القنوات من الرابط. جرّب رابط M3U مباشر أو اختر الملف من الجهاز.')}}"
           )
           html_path.write_text(html)
 
@@ -553,14 +567,14 @@ jobs:
           )
           java = java.replace("MotionEvent.ACTION_DOWN, x, y, 0", "MotionEvent.ACTION_DOWN, sx, sy, 0")
           java = java.replace("MotionEvent.ACTION_UP, x, y, 0", "MotionEvent.ACTION_UP, sx, sy, 0")
-          java = java.replace("presentation.getWindow().getDecorView().dispatchTouchEvent(down);", "web.dispatchTouchEvent(down);")
-          java = java.replace("presentation.getWindow().getDecorView().dispatchTouchEvent(up);", "web.dispatchTouchEvent(up);")
-          if "web.dispatchTouchEvent(down);" not in java:
+          java = java.replace("web.dispatchTouchEvent(down);", "presentation.getWindow().getDecorView().dispatchTouchEvent(down);")
+          java = java.replace("web.dispatchTouchEvent(up);", "presentation.getWindow().getDecorView().dispatchTouchEvent(up);")
+          if "presentation.getWindow().getDecorView().dispatchTouchEvent(down);" not in java:
               raise SystemExit("touch dispatch patch failed")
           # Keep media playback in WebView by serving persisted SAF/MediaStore URIs through the app bridge URL.
           java = java.replace(
               "import android.webkit.WebViewClient;",
-              "import android.webkit.WebViewClient;" + chr(10) + "import android.webkit.WebResourceRequest;" + chr(10) + "import android.webkit.WebResourceResponse;" + chr(10) + "import java.io.InputStream;"
+              "import android.webkit.WebViewClient;" + chr(10) + "import android.webkit.WebResourceRequest;" + chr(10) + "import android.webkit.WebResourceResponse;" + chr(10) + "import android.content.res.AssetFileDescriptor;"
           )
           marker = "@Override public void onPageFinished(WebView view, String url) {"
           replacement = """@Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
@@ -568,16 +582,59 @@ jobs:
                     if (!address.startsWith("https://localfile.invalid/")) return null;
                     Map<String,String> headers = new HashMap<>();
                     headers.put("Access-Control-Allow-Origin", "*");
+                    headers.put("Accept-Ranges", "bytes");
+                    AssetFileDescriptor afd = null;
                     try {
                       String raw = Uri.parse(address).getQueryParameter("u");
                       if (raw == null) throw new IllegalArgumentException("Missing media URI");
                       Uri source = Uri.parse(raw);
                       String mime = getCarContext().getContentResolver().getType(source);
                       if (mime == null) mime = "application/octet-stream";
-                      InputStream stream = getCarContext().getContentResolver().openInputStream(source);
-                      return new WebResourceResponse(mime, null, 200, "OK", headers, stream);
+                      afd = getCarContext().getContentResolver().openAssetFileDescriptor(source, "r");
+                      if (afd == null) throw new IllegalStateException("Cannot open media descriptor");
+                      long total = afd.getLength();
+                      String range = request.getRequestHeaders().get("Range");
+                      if (range != null && total > 0) {
+                        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("bytes=(\\\\d+)-(\\\\d*)").matcher(range);
+                        if (matcher.matches()) {
+                          long start = Long.parseLong(matcher.group(1));
+                          long end = matcher.group(2).isEmpty() ? total - 1 : Math.min(total - 1, Long.parseLong(matcher.group(2)));
+                          if (start >= total || end < start) {
+                            headers.put("Content-Range", "bytes */" + total);
+                            afd.close();
+                            return new WebResourceResponse(mime, null, 416, "Range Not Satisfiable", headers, new java.io.ByteArrayInputStream(new byte[0]));
+                          }
+                          long remaining = end - start + 1;
+                          InputStream stream = afd.createInputStream();
+                          long skipped = 0; while (skipped < start) { long n = stream.skip(start - skipped); if (n <= 0) break; skipped += n; }
+                          final AssetFileDescriptor owned = afd;
+                          InputStream bounded = new java.io.FilterInputStream(stream) {
+                            long left = remaining;
+                            @Override public int read() throws java.io.IOException { if (left <= 0) return -1; int v = super.read(); if (v >= 0) left--; return v; }
+                            @Override public int read(byte[] b, int off, int len) throws java.io.IOException { if (left <= 0) return -1; int n = super.read(b, off, (int)Math.min(len, left)); if (n > 0) left -= n; return n; }
+                            @Override public void close() throws java.io.IOException { try { super.close(); } finally { owned.close(); } }
+                          };
+                          headers.put("Content-Range", "bytes " + start + "-" + end + "/" + total);
+                          headers.put("Content-Length", String.valueOf(remaining));
+                          return new WebResourceResponse(mime, null, 206, "Partial Content", headers, bounded);
+                        }
+                      }
+                      InputStream stream = afd.createInputStream();
+                      final AssetFileDescriptor owned = afd;
+                      InputStream managed = new java.io.FilterInputStream(stream) {
+                        @Override public void close() throws java.io.IOException { try { super.close(); } finally { owned.close(); } }
+                      };
+                      if (total > 0) headers.put("Content-Length", String.valueOf(total));
+                      return new WebResourceResponse(mime, null, 200, "OK", headers, managed);
                     } catch (Exception e) {
-                      return new WebResourceResponse("text/plain","utf-8",404,"Not Found",headers,new java.io.ByteArrayInputStream(new byte[0]));
+                      try { if (afd != null) afd.close(); } catch (Exception ignored) {}
+                      try {
+                        String raw = Uri.parse(address).getQueryParameter("u");
+                        InputStream fallback = getCarContext().getContentResolver().openInputStream(Uri.parse(raw));
+                        return new WebResourceResponse("application/octet-stream", null, 200, "OK", headers, fallback);
+                      } catch (Exception ignored) {
+                        return new WebResourceResponse("text/plain","utf-8",404,"Not Found",headers,new java.io.ByteArrayInputStream(new byte[0]));
+                      }
                     }
                   }
                   @Override public void onPageFinished(WebView view, String url) {"""
