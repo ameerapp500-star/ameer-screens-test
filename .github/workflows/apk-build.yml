@@ -302,7 +302,18 @@ jobs:
               web.post(() -> web.loadUrl(url));
             }
             @JavascriptInterface public void openApp(String pkg) {
-              try { Intent i = context.getPackageManager().getLaunchIntentForPackage(pkg); if (i != null) { i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(i); } } catch (Exception ignored) {}
+              if ("com.waze".equals(pkg) || "com.google.android.apps.maps".equals(pkg)) {
+                try {
+                  Intent nav = new Intent(CarContext.ACTION_NAVIGATE, Uri.parse("geo:0,0?q=My%20Location"));
+                  nav.setPackage(pkg);
+                  context.startCarApp(nav);
+                  return;
+                } catch (Exception ignored) {}
+              }
+              try {
+                Intent i = context.getPackageManager().getLaunchIntentForPackage(pkg);
+                if (i != null) { i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(i); }
+              } catch (Exception ignored) {}
             }
             @JavascriptInterface public void saveMapApps(String json) {
               context.getSharedPreferences("ameer_maps", 0).edit().putString("apps", json).apply();
@@ -451,7 +462,7 @@ jobs:
           p = Path("app/src/main/assets/index.html")
           source = p.read_text()
           anchor = "function renderApps(){"
-          addition = """\n  if(appKey==='maps') {\n    const saved=S('ap_maps')||[];\n    const defaults=[{n:'Waze',p:'com.waze'},{n:'Google Maps',p:'com.google.android.apps.maps'},{n:'دربونة',p:'iq.darbuna.app'}];\n    defaults.forEach(x=>{if(!saved.some(y=>y.p===x.p)) saved.push(x)});\n    S('ap_maps',saved);\n  }"""
+          addition = """\n  if(appKey==='maps') {\n    const saved=S('ap_maps')||[];\n    const defaults=[{n:'Waze',p:'com.waze'},{n:'Google Maps',p:'com.google.android.apps.maps'}];\n    defaults.forEach(x=>{if(!saved.some(y=>y.p===x.p)) saved.push(x)});\n    S('ap_maps',saved);\n  }"""
           if anchor not in source:
               raise SystemExit("renderApps anchor missing")
           p.write_text(source.replace(anchor, anchor + addition, 1))
