@@ -365,7 +365,46 @@ jobs:
                 context.getSharedPreferences("f",0).edit().putString("l",n.toString()).apply();
               } catch (Exception ignored) {}
             }
-            @JavascriptInterface public String listDir(String tree, String doc) { return "[]"; }
+            @JavascriptInterface public String listDir(String tree, String doc) {
+              JSONArray out = new JSONArray();
+              android.database.Cursor cursor = null;
+              try {
+                Uri treeUri = Uri.parse(tree);
+                String parentId = (doc == null || doc.length() == 0)
+                    ? android.provider.DocumentsContract.getTreeDocumentId(treeUri) : doc;
+                Uri parentUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, parentId);
+                cursor = context.getContentResolver().query(
+                    android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentId),
+                    new String[] {
+                      android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                      android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                      android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE,
+                      android.provider.DocumentsContract.Document.COLUMN_LAST_MODIFIED
+                    }, null, null, null);
+                if (cursor != null) {
+                  while (cursor.moveToNext() && out.length() < 1000) {
+                    String id = cursor.getString(0);
+                    String name = cursor.getString(1);
+                    String mime = cursor.getString(2);
+                    boolean directory = android.provider.DocumentsContract.Document.MIME_TYPE_DIR.equals(mime);
+                    Uri child = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, id);
+                    JSONObject item = new JSONObject();
+                    item.put("id", id == null ? "" : id);
+                    item.put("n", name == null ? "بدون اسم" : name);
+                    item.put("d", directory);
+                    item.put("m", directory ? "vnd.android.document/directory" : (mime == null ? "application/octet-stream" : mime));
+                    item.put("u", directory ? "" : child.toString());
+                    item.put("t", cursor.isNull(3) ? 0 : cursor.getLong(3));
+                    out.put(item);
+                  }
+                }
+              } catch (Exception e) {
+                android.util.Log.e("AmeerCarWeb", "Folder listing failed", e);
+              } finally {
+                if (cursor != null) try { cursor.close(); } catch (Exception ignored) {}
+              }
+              return out.toString();
+            }
             @JavascriptInterface public void pickFolder() {
               Intent i = new Intent(context, MainActivity.class);
               i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
