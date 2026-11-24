@@ -375,36 +375,10 @@ jobs:
           ])
 
           patch("app/src/main/java/com/carscreens/app/CarWebScreen.java", [
-              ('import android.content.Intent;','import android.content.Intent;\n          import android.content.SharedPreferences;','shared preferences import'),
               ('import android.provider.MediaStore;','import android.provider.MediaStore;\n          import android.provider.DocumentsContract;','documents contract import'),
-              ('private int scrollX, scrollY;','''private int scrollX, scrollY;
-            private final SharedPreferences.OnSharedPreferenceChangeListener folderListener =
-                (prefs, key) -> {
-                  if ("l".equals(key)) main.post(() -> {
-                    if (web != null) web.evaluateJavascript("fshow()", null);
-                  });
-                };''','shared preference refresh listener'),
-              ('              getCarContext().getCarService(AppManager.class).setSurfaceCallback(surfaceCallback);',
-               '              getCarContext().getCarService(AppManager.class).setSurfaceCallback(surfaceCallback);\n              getCarContext().getSharedPreferences("f", Context.MODE_PRIVATE).registerOnSharedPreferenceChangeListener(folderListener);',
-               'register folder refresh'),
-              ('''          @Override public Template onGetTemplate() {
-              return new NavigationTemplate.Builder()
-                  .setActionStrip(new ActionStrip.Builder().addAction(Action.BACK).build())
-                  .build();
-            }''',
-               '''          @Override public Template onGetTemplate() {
-              Action back = new Action.Builder()
-                  .setTitle("رجوع")
-                  .setOnClickListener(() -> {
-                    if (web != null) web.evaluateJavascript("carBack()", null);
-                  })
-                  .build();
-              return new NavigationTemplate.Builder()
-                  .setActionStrip(new ActionStrip.Builder().addAction(back).build())
-                  .build();
-            }''','custom web back action'),
-              ('            @JavascriptInterface public String listDir(String tree, String doc) { return "[]"; }',
-               '''            @JavascriptInterface public String listDir(String tree, String doc) {
+              ('Action.BACK','new Action.Builder().setTitle("رجوع").setOnClickListener(() -> { if (web != null) web.evaluateJavascript("carBack()", null); }).build()','custom back action'),
+              ('''@JavascriptInterface public String listDir(String tree, String doc) { return "[]"; }''',
+               '''@JavascriptInterface public String listDir(String tree, String doc) {
               JSONArray out = new JSONArray();
               Cursor c = null;
               try {
@@ -440,6 +414,9 @@ jobs:
           ])
 
           patch("app/src/main/assets/index.html", [
+              ("""function fshow(){FP=[];renderFiles()}""",
+               """function fshow(){FP=[];renderFiles()}\nsetInterval(()=>{if(cur==='files'&&!FP.length)renderFiles()},1500)""",
+               'refresh saved folders after picker'),
               ("""function home(){$('app').style.display='none';$('home').style.display='block';document.querySelectorAll('video,audio').forEach(m=>m.pause());$('mv').innerHTML='';$('fv').innerHTML=''}""",
                """function carBack(){if($('app').style.display==='none')return;if(cur==='files'&&FP.length){FP.pop();renderFiles();return}if(cur==='radio'&&$('rl').querySelector('button')){radioCountries();return}home()}\nfunction home(){$('app').style.display='none';$('home').style.display='block';document.querySelectorAll('video,audio').forEach(m=>m.pause());$('mv').innerHTML='';$('fv').innerHTML=''}""",
                'JavaScript back navigation')
