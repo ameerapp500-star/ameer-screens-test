@@ -448,7 +448,6 @@ jobs:
               return out.toString();
             }''','real SAF directory listing')
           ])
-
           patch("app/src/main/assets/index.html", [
               ("""function fshow(){FP=[];renderFiles()}""",
                """function fshow(){FP=[];renderFiles()}\nsetInterval(()=>{if(cur==='files'&&!FP.length)renderFiles()},1500)""",
@@ -897,8 +896,7 @@ jobs:
                   playerView.setControllerAutoShow(true);
                   playerView.setKeepContentOnPlayerReset(true);
                   playerView.setPlayer(carPlayer);
-                  carPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                      .setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true);
+                  carPlayer.setAudioAttributes(new AudioAttributes.Builder()                      .setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true);
                   carPlayer.addListener(new Player.Listener() {
                     @Override public void onPlayerError(PlaybackException error) {
                       Toast.makeText(context, "تعذّر تشغيل القناة أو الفيديو: " + error.getErrorCodeName(), Toast.LENGTH_LONG).show();
@@ -970,6 +968,110 @@ jobs:
                         "onCheckIsTextEditor() { return false; }", "arabic=true",
                         "pasteClipboard()", "DefaultMediaSourceFactory sources"]:
               if token not in car: raise SystemExit("Car behavior check failed: " + token)
+          PY
+
+      - name: Add phone-to-car browser text and link remote input
+        working-directory: extracted/car-screens-main
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          # Add phone-side remote input controls to the existing browser screen.
+          browser_path = Path("app/src/main/java/com/carscreens/app/BrowserActivity.java")
+          browser = browser_path.read_text()
+          if "sendRemoteCommand(String type)" not in browser:
+              browser = browser.replace(
+                  "import android.widget.TextView;",
+                  "import android.widget.TextView;\nimport android.widget.Toast;\nimport org.json.JSONObject;",
+                  1
+              )
+              browser = browser.replace(
+                  "WebView w; EditText ed; FrameLayout root;",
+                  "WebView w; EditText ed, remoteEd; FrameLayout root;",
+                  1
+              )
+              anchor = "    col.addView(ed, new LinearLayout.LayoutParams(-1, -2));"
+              controls = """    col.addView(ed, new LinearLayout.LayoutParams(-1, -2));
+              LinearLayout remoteBar = new LinearLayout(this);
+              remoteBar.setBackgroundColor(0xFF17212B);
+              remoteEd = new EditText(this);
+              remoteEd.setSingleLine(true);
+              remoteEd.setTextColor(0xFFFFFFFF);
+              remoteEd.setHintTextColor(0xFFAAAAAA);
+              remoteEd.setHint("اكتب أو الصق نصاً لشاشة السيارة");
+              remoteEd.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+              remoteBar.addView(remoteEd, new LinearLayout.LayoutParams(0, -2, 3f));
+              remoteBar.addView(btn("إرسال النص", new View.OnClickListener() { public void onClick(View v) { sendRemoteCommand("text"); }}));
+              remoteBar.addView(btn("بحث", new View.OnClickListener() { public void onClick(View v) { sendRemoteCommand("search"); }}));
+              remoteBar.addView(btn("فتح رابط", new View.OnClickListener() { public void onClick(View v) { sendRemoteCommand("url"); }}));
+              col.addView(remoteBar, new LinearLayout.LayoutParams(-1, -2));"""
+              if anchor not in browser:
+                  raise SystemExit("BrowserActivity address-bar insertion point missing")
+              browser = browser.replace(anchor, controls, 1)
+              marker = "  Button btn(String t, View.OnClickListener l) {"
+              method = """  void sendRemoteCommand(String type) {
+              String value = remoteEd == null ? "" : remoteEd.getText().toString().trim();
+              if (value.length() == 0) return;
+              if ("url".equals(type)) {
+                if (!value.startsWith("http://") && !value.startsWith("https://")) {
+                  if (value.matches("(?i)^[a-z0-9.-]+\\\\.[a-z]{2,}(/.*)?$")) value = "https://" + value;
+                  else value = "https://www.google.com/search?q=" + Uri.encode(value);
+                }
+              }
+              try {
+                JSONObject command = new JSONObject();
+                command.put("type", type);
+                command.put("value", value);
+                getSharedPreferences("ameer_remote", MODE_PRIVATE).edit()
+                    .putString("pending", command.toString()).apply();
+                remoteEd.setText("");
+                Toast.makeText(this, "تم إرسال الطلب إلى شاشة السيارة", Toast.LENGTH_SHORT).show();
+              } catch (Exception ignored) {
+                Toast.makeText(this, "تعذّر إرسال النص", Toast.LENGTH_SHORT).show();
+              }
+            }
+
+          """
+              if marker not in browser:
+                  raise SystemExit("BrowserActivity button helper insertion point missing")
+              browser = browser.replace(marker, method + marker, 1)
+              browser_path.write_text(browser)
+
+          # Car-side bridge consumes commands written by BrowserActivity.
+          car_path = Path("app/src/main/java/com/carscreens/app/CarWebScreen.java")
+          car = car_path.read_text()
+          if "pollRemoteCommand()" not in car:
+              marker = "            void release() {"
+              method = """            @JavascriptInterface public String pollRemoteCommand() {
+              android.content.SharedPreferences prefs = context.getSharedPreferences("ameer_remote", 0);
+              String command = prefs.getString("pending", "");
+              if (command != null && command.length() > 0) prefs.edit().remove("pending").apply();
+              return command == null ? "" : command;
+            }
+
+          """
+              if marker not in car:
+                  raise SystemExit("CarBridge release insertion point missing")
+              car = car.replace(marker, method + marker, 1)
+
+          # Poll the shared command queue and insert text into the active website field,
+          # submit a website search, or navigate the car WebView to a supplied URL.
+          js_anchor = '+ "document.addEventListener(\\'click\\',function(e){if(e.target&&e.target.closest&&e.target.closest(\\'a\\'))kb.style.display=\\'none\\';},true);"\n'
+          if "Android.pollRemoteCommand" not in car:
+              remote_js = """if(window.Android&&Android.pollRemoteCommand&&!window.__ameerRemotePoll){window.__ameerRemotePoll=true;setInterval(function(){try{var raw=Android.pollRemoteCommand();if(!raw)return;var c=JSON.parse(raw);if(c.type==='url'){window.location.href=c.value;return;}var t=active||fieldOf(document.activeElement);if(!t){var list=document.querySelectorAll('input:not([type=hidden]):not([type=file]),textarea,[contenteditable=true],[role=textbox],[role=searchbox]');for(var i=0;i<list.length;i++){if(list[i].getClientRects().length){t=list[i];break;}}}if(c.type==='search'){if(t){active=t;put(c.value);try{var f=t.form||(t.closest?t.closest('form'):null);if(f){if(f.requestSubmit)f.requestSubmit();else f.submit();}else t.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true}));}catch(e){}}else{window.location.href='https://www.google.com/search?q='+encodeURIComponent(c.value);}return;}if(t){active=t;put(c.value);}else{window.location.href='https://www.google.com/search?q='+encodeURIComponent(c.value);}}catch(e){}},450);}"""
+              if js_anchor not in car:
+                  raise SystemExit("Car browser keyboard polling insertion point missing")
+              car = car.replace(js_anchor, js_anchor + "                + " + json.dumps(remote_js) + "\n", 1)
+
+          car_path.write_text(car)
+
+          for token in ["pollRemoteCommand()", "Android.pollRemoteCommand", "ameer_remote"]:
+              if token not in car:
+                  raise SystemExit("Car remote-input verification failed: " + token)
+          for token in ["sendRemoteCommand(String type)", "إرسال النص", "فتح رابط", "ameer_remote"]:
+              if token not in browser:
+                  raise SystemExit("Phone remote-input verification failed: " + token)
           PY
 
       - name: Validate original interface JavaScript
