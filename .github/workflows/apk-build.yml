@@ -502,7 +502,7 @@ jobs:
 
           replace_once("app/src/main/assets/index.html",
               '''    <input id="wu" placeholder="اكتب رابط أو بحث" dir="ltr" style="margin-top:12px">
-                <button class="btn p" onclick="webGo()">فتح</button>''',
+    <button class="btn p" onclick="webGo()">فتح</button>''',
               '''    <input id="wu" placeholder="اكتب رابط أو بحث" dir="ltr" style="margin-top:12px">
                 <button class="btn" onclick="pasteWeb()">لصق الرابط من الحافظة</button>
                 <button class="btn p" onclick="webGo()">فتح</button>''',
