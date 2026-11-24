@@ -463,6 +463,19 @@ jobs:
 
           html_path = Path("app/src/main/assets/index.html")
           html = html_path.read_text()
+          gradle = Path("app/build.gradle")
+          gradle_text = gradle.read_text()
+          gradle_text = gradle_text.replace(
+              "dependencies { implementation 'androidx.car.app:app:1.4.0' }",
+              """dependencies {
+                implementation 'androidx.car.app:app:1.4.0'
+                implementation 'androidx.media3:media3-exoplayer:1.5.1'
+                implementation 'androidx.media3:media3-exoplayer-hls:1.5.1'
+                implementation 'androidx.media3:media3-ui:1.5.1'
+              }"""
+          )
+          gradle.write_text(gradle_text)
+
 
           # Remove the maps tile and its dedicated web shortcut from the interface.
           html = re.sub(r"\['maps','الخرائط',[^\n]*\],?\n", "", html)
@@ -491,15 +504,12 @@ jobs:
               raise SystemExit("player function bounds missing")
           html = html[:a] + """function player(box,u,m){
             box.innerHTML='';
-            const t=m.startsWith('video')?'video':m.startsWith('audio')?'audio':'img';
-            const e=document.createElement(t);
-            e.controls=t!=='img';e.preload='auto';e.autoplay=true;
-            if(t==='img'){e.style.cssText='width:100%;border-radius:14px'}
-            else if(t==='video'){e.playsInline=true;e.setAttribute('playsinline','');e.style.cssText='width:100%;max-height:68vh;background:#000;border-radius:14px'}
-            e.addEventListener('error',()=>{const p=document.createElement('p');p.textContent='تعذّر فتح الفيديو من هذا المجلد أو أن صيغة الملف غير مدعومة.';box.appendChild(p)});
-            box.appendChild(e);
-            e.src=FU(u);
-            if(t!=='img'){e.load();const play=e.play();if(play&&play.catch)play.catch(()=>{});}
+            if(m.startsWith('video')&&A.playVideo){box.textContent='جار تشغيل الفيديو على شاشة السيارة...';A.playVideo(u);return}
+            const t=m.startsWith('audio')?'audio':'img';
+            const e=document.createElement(t);e.src=FU(u);
+            if(t==='img')e.style.cssText='width:100%;border-radius:14px';
+            else{e.controls=true;e.autoplay=true;e.preload='auto';e.addEventListener('error',()=>{box.textContent='تعذّر تشغيل الملف الصوتي.'})}
+            box.appendChild(e);if(t==='audio')e.play().catch(()=>{});
           }
           """ + html[b:]
 
@@ -508,30 +518,18 @@ jobs:
           b = html.find("\nfunction addList", a)
           if a < 0 or b < 0:
               raise SystemExit("IPTV function bounds missing")
-          html = html[:a] + """let activeHls=null;
-          function playUrl(u,id){
+          html = html[:a] + """function playUrl(u,id){
             const v=$(id);u=(u||'').trim();if(!u)return;
-            if(activeHls){try{activeHls.destroy()}catch(e){}activeHls=null}
             const old=$('tvError');if(old)old.remove();
-            v.pause();v.removeAttribute('src');v.load();v.controls=true;v.playsInline=true;v.setAttribute('playsinline','');
-            v.onerror=()=>{const p=document.createElement('p');p.id='tvError';p.textContent='تعذّر تشغيل القناة: افحص رابط البث أو صلاحية الاشتراك أو توافق الترميز.';$('chs').prepend(p)};
-            const hlsLike=/\\.m3u8?(?:$|[?#])/i.test(u)||/m3u8/i.test(u);
-            if(hlsLike&&window.Hls&&Hls.isSupported()){
-              activeHls=new Hls({enableWorker:false,lowLatencyMode:false,backBufferLength:30});
-              activeHls.attachMedia(v);
-              activeHls.on(Hls.Events.MEDIA_ATTACHED,()=>activeHls&&activeHls.loadSource(u));
-              activeHls.on(Hls.Events.ERROR,(ev,data)=>{if(data.fatal){if(data.type===Hls.ErrorTypes.NETWORK_ERROR)activeHls.startLoad();else if(data.type===Hls.ErrorTypes.MEDIA_ERROR)activeHls.recoverMediaError();else{try{activeHls.destroy()}catch(e){}activeHls=null;v.src=u;v.play().catch(()=>{})}}});
-            }else v.src=u;
-            v.play().catch(()=>{});
+            if(A.playVideo){A.playVideo(u);return}
+            v.src=u;v.play().catch(()=>{});
           }
-          let m3uBase='';
           function parseM3u(t,base){
             const out=[];let name='',logo='',group='';
             (t||'').replace(/^\\uFEFF/,'').split(/\\r?\\n/).forEach(line=>{
               const l=line.trim();if(!l)return;
               if(l.startsWith('#EXTINF')){
-                const comma=l.lastIndexOf(',');
-                name=comma>=0?l.slice(comma+1).trim():'';
+                const comma=l.lastIndexOf(',');name=comma>=0?l.slice(comma+1).trim():'';
                 const nm=l.match(/tvg-name=[\\"']([^\\"']+)/i);if(!name&&nm)name=nm[1];
                 const lg=l.match(/tvg-logo=[\\"']([^\\"']+)/i);logo=lg?lg[1]:'';
                 const gp=l.match(/group-title=[\\"']([^\\"']+)/i);group=gp?gp[1]:'';
@@ -546,6 +544,8 @@ jobs:
             "async function addUrl(){try{const u=$('m3url').value.trim();const t=A.fetchText?A.fetchText(u):await(await fetch(u)).text();addList(parseM3u(t));$('m3url').value=''}catch(e){alert('تعذّر تحميل القائمة. تحقق من الرابط أو الصق محتواها.')}}",
             "async function addUrl(){try{const u=$('m3url').value.trim();if(!u)throw 0;const t=A.fetchText?A.fetchText(u):await(await fetch(u)).text();if(!t||!t.trim())throw 0;const l=parseM3u(t,u);if(!l.length)throw 0;addList(l);$('m3url').value=''}catch(e){alert('تعذّر تحميل القنوات من الرابط. جرّب رابط M3U مباشر أو اختر الملف من الجهاز.')}}"
           )
+          html = html.replace("function show(id,t){$('home').style.display='none';", "function show(id,t){if(A.hidePlayer)A.hidePlayer();$('home').style.display='none';")
+          html = html.replace("function home(){$('app').style.display='none';", "function home(){if(A.hidePlayer)A.hidePlayer();$('app').style.display='none';")
           html_path.write_text(html)
 
           # Harden touch-to-WebView coordinate mapping and enable WebView focus for input fields.
@@ -555,6 +555,54 @@ jobs:
               "web = new WebView(getCarContext());",
               "web = new WebView(getCarContext());\n                web.setFocusable(true);\n                web.setFocusableInTouchMode(true);"
           )
+          java = java.replace(
+              "import android.view.Surface;",
+              "import android.view.Surface;" + chr(10) + "import android.view.View;" + chr(10) + "import android.widget.FrameLayout;" + chr(10) + "import androidx.media3.common.MediaItem;" + chr(10) + "import androidx.media3.exoplayer.ExoPlayer;" + chr(10) + "import androidx.media3.ui.PlayerView;"
+          )
+          java = java.replace(
+              "private WebView web;",
+              "private WebView web;" + chr(10) + "private FrameLayout root;" + chr(10) + "private PlayerView playerView;" + chr(10) + "private ExoPlayer carPlayer;"
+          )
+          java = java.replace(
+              "web.setFocusableInTouchMode(true);",
+              "web.setFocusableInTouchMode(true);" + chr(10) + "root = new FrameLayout(getCarContext());" + chr(10) + "playerView = new PlayerView(getCarContext());" + chr(10) + "playerView.setUseController(true);" + chr(10) + "playerView.setVisibility(View.GONE);"
+          )
+          java = java.replace(
+              "presentation.setContentView(web);",
+              "root.addView(web, new FrameLayout.LayoutParams(-1, -1));" + chr(10) + "root.addView(playerView, new FrameLayout.LayoutParams(-1, -1));" + chr(10) + "presentation.setContentView(root);"
+          )
+          java = java.replace(
+              "web = null;",
+              "web = null;" + chr(10) + "try { if (carPlayer != null) { carPlayer.release(); carPlayer = null; } } catch (Exception ignored) {}" + chr(10) + "playerView = null; root = null;",
+              1
+          )
+          old_play = """@JavascriptInterface public void playVideo(String url) {
+              try { Intent i = new Intent(context, VideoActivity.class); i.putExtra("u", url); i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(i); } catch (Exception ignored) {}
+            }"""
+          new_play = """@JavascriptInterface public void playVideo(String url) {
+              main.post(() -> {
+                try {
+                  if (carPlayer == null) carPlayer = new ExoPlayer.Builder(context).build();
+                  playerView.setPlayer(carPlayer);
+                  web.setVisibility(View.GONE);
+                  playerView.setVisibility(View.VISIBLE);
+                  carPlayer.setMediaItem(MediaItem.fromUri(Uri.parse(url)));
+                  carPlayer.prepare();
+                  carPlayer.play();
+                } catch (Exception e) { Log.e("AmeerCarWeb", "In-car playback failed", e); }
+              });
+            }
+            @JavascriptInterface public void hidePlayer() {
+              main.post(() -> {
+                try { if (carPlayer != null) carPlayer.pause(); } catch (Exception ignored) {}
+                if (playerView != null) playerView.setVisibility(View.GONE);
+                if (web != null) web.setVisibility(View.VISIBLE);
+              });
+            }"""
+          if old_play not in java:
+              raise SystemExit("native player bridge anchor missing")
+          java = java.replace(old_play, new_play, 1)
+
           java = java.replace(
               "presentation.show();\n                web.loadUrl",
               "presentation.show();\n                web.requestFocus();\n                web.loadUrl"
