@@ -532,7 +532,7 @@ jobs:
               "maps launch through car navigation host")
           p = Path("app/src/main/assets/index.html")
           src = p.read_text()
-          old = "function renderApps(){\\n  const a=S('ap_'+appKey)||[];"
+          old = "function renderApps(){\n  const a=S('ap_'+appKey)||[];"
           new = """function renderApps(){
             if(appKey==='maps' && !S('ap_maps')) S('ap_maps',[
               {n:'Waze',p:'com.waze'},
