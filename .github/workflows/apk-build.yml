@@ -937,13 +937,6 @@ jobs:
               if copy not in car: raise SystemExit("CarBridge clipboard method missing")
               car = car.replace(copy, paste, 1)
 
-          if "media3-exoplayer-rtsp" not in Path("app/build.gradle").read_text():
-              gp = Path("app/build.gradle")
-              g = gp.read_text()
-              anchor = "implementation 'androidx.media3:media3-exoplayer-hls:1.4.1'"
-              if anchor in g:
-                  gp.write_text(g.replace(anchor, anchor + "\\n    implementation 'androidx.media3:media3-exoplayer-rtsp:1.4.1'", 1))
-
           car_path.write_text(car)
 
           # Route browser/video requests originating from the phone-side WebView
