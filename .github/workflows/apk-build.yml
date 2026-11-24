@@ -951,7 +951,7 @@ jobs:
           main_path = Path("app/src/main/java/com/carscreens/app/MainActivity.java")
           main = main_path.read_text()
           def route_method(source, name, signature, body):
-              pattern = re.compile(r"(?m)^\\s*@JavascriptInterface public void " + name + r"\\(" + signature + r"\\) \\{.*?^\\s*\\}", re.S)
+              pattern = re.compile(r"(?m)^\s*@JavascriptInterface public void " + name + r"\(" + signature + r"\) \{.*?^\s*\}", re.S)
               if "CarWebScreen." + ("openWebOnCar" if name == "openWeb" else "playVideoOnCar") + "(" in source:
                   return source
               if not pattern.search(source):
