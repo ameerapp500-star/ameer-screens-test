@@ -202,7 +202,7 @@ jobs:
                 if (virtualDisplay == null) return;
                 Display display = virtualDisplay.getDisplay();
                 presentation = new Presentation(getCarContext(), display);
-                web = new WebView(presentation);
+                web = new WebView(getCarContext());
                 WebSettings s = web.getSettings();
                 s.setJavaScriptEnabled(true);
                 s.setDomStorageEnabled(true);
