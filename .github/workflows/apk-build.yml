@@ -441,8 +441,7 @@ jobs:
 
           patch("app/src/main/assets/index.html", [
               ("""function home(){$('app').style.display='none';$('home').style.display='block';document.querySelectorAll('video,audio').forEach(m=>m.pause());$('mv').innerHTML='';$('fv').innerHTML=''}""",
-               """function carBack(){if($('app').style.display==='none')return;if(cur==='files'&&FP.length){FP.pop();renderFiles();return}if(cur==='radio'&&$('rl').querySelector('button')){radioCountries();return}home()}
-function home(){$('app').style.display='none';$('home').style.display='block';document.querySelectorAll('video,audio').forEach(m=>m.pause());$('mv').innerHTML='';$('fv').innerHTML=''}""",
+               """function carBack(){if($('app').style.display==='none')return;if(cur==='files'&&FP.length){FP.pop();renderFiles();return}if(cur==='radio'&&$('rl').querySelector('button')){radioCountries();return}home()}\nfunction home(){$('app').style.display='none';$('home').style.display='block';document.querySelectorAll('video,audio').forEach(m=>m.pause());$('mv').innerHTML='';$('fv').innerHTML=''}""",
                'JavaScript back navigation')
           ])
           PY
