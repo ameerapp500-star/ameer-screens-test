@@ -1,5 +1,5 @@
 
-# Build 72 - phone-to-car remote browser input
+# Build 81 - reference dashboard interface and phone-to-car controls
 name: Build APK
 
 on:
@@ -1256,6 +1256,10 @@ jobs:
               if token not in source:
                 raise SystemExit("Remote browser wiring check failed: " + str(path) + " / " + token)
           PY
+
+      - name: Apply reference dashboard interface
+        working-directory: extracted/car-screens-main
+        run: cp ../../ameer-ui.html app/src/main/assets/index.html
 
       - name: Validate original interface JavaScript
         working-directory: extracted/car-screens-main
