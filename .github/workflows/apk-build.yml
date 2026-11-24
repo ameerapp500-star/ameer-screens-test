@@ -546,6 +546,7 @@ jobs:
           )
           html = html.replace("function show(id,t){$('home').style.display='none';", "function show(id,t){if(A.hidePlayer)A.hidePlayer();$('home').style.display='none';")
           html = html.replace("function home(){$('app').style.display='none';", "function home(){if(A.hidePlayer)A.hidePlayer();$('app').style.display='none';")
+          html = html.replace("function carBack(){if($('app').style.display==='none')return;", "function carBack(){if(A.hidePlayer)A.hidePlayer();if($('app').style.display==='none')return;")
           html_path.write_text(html)
 
           # Harden touch-to-WebView coordinate mapping and enable WebView focus for input fields.
