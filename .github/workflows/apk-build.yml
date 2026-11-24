@@ -486,7 +486,7 @@ jobs:
 
           # Play videos inside the same WebView surface, not in a phone Activity.
           a = html.find("function player(box,u,m){")
-          b = html.find("\\nfunction loadMedia()", a)
+          b = html.find("\nfunction loadMedia()", a)
           if a < 0 or b < 0:
               raise SystemExit("player function bounds missing")
           html = html[:a] + """function player(box,u,m){
@@ -505,7 +505,7 @@ jobs:
 
           # Improve M3U parsing and HLS/native playback fallback with visible errors.
           a = html.find("function playUrl(u,id){")
-          b = html.find("\\nfunction addList", a)
+          b = html.find("\nfunction addList", a)
           if a < 0 or b < 0:
               raise SystemExit("IPTV function bounds missing")
           html = html[:a] + """let activeHls=null;
