@@ -232,8 +232,11 @@ function it(box,txt,fn,extra){const d=document.createElement('div');d.className=
 function xb(fn){const x=document.createElement('span');x.textContent='✖';x.onclick=fn;return x}
 function openT(t){
   const k=t[0];cur=k;
+  // YouTube opens as a normal website in the Android Auto car WebView,
+  // not as a separate YouTube phone app or phone-side controller.
+  if(k==='yt'){A.openWeb('https://m.youtube.com');return}
   if(k==='kids'){A.openWeb('https://www.youtubekids.com');return}
-  if(['yt','web','tv','set'].includes(k)){show(k,t[1]);if(k==='tv')renderTV();return}
+  if(['web','tv','set'].includes(k)){show(k,t[1]);if(k==='tv')renderTV();return}
   if(k==='radio'){show('radio',t[1]);radioCountries();return}
   if(k==='files'){show('files',t[1]);fshow();return}
   if(k==='maps'||k==='apps'){appKey=k;show('apps',t[1]);$('mapsweb').style.display=k==='maps'?'block':'none';renderApps();return}
