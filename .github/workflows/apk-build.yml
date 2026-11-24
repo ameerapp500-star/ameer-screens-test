@@ -532,6 +532,59 @@ jobs:
               "maps launch through car navigation host")
           PY
 
+
+      - name: Add Waze and Darbuna navigation shortcuts
+        working-directory: extracted/car-screens-main
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("app/src/main/java/com/carscreens/app/CarWebScreen.java")
+          src = p.read_text()
+          anchor = '''            @JavascriptInterface public void openApp(String pkg) {
+              try { Intent i = context.getPackageManager().getLaunchIntentForPackage(pkg); if (i != null) { i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(i); } } catch (Exception ignored) {}
+            }'''
+          if anchor not in src:
+              raise SystemExit("CarBridge openApp anchor missing")
+          addition = anchor + '''
+            @JavascriptInterface public String openMapApp(String pkg) {
+              try {
+                Intent nav = new Intent(CarContext.ACTION_NAVIGATE, Uri.parse("geo:0,0"));
+                nav.setPackage(pkg);
+                context.startCarApp(nav);
+                return "STARTED";
+              } catch (Exception e) {
+                Log.e("AmeerCarWeb", "Could not start Android Auto navigation app: " + pkg, e);
+                return "FAILED";
+              }
+            }'''
+          src = src.replace(anchor, addition, 1)
+          p.write_text(src)
+
+          p = Path("app/src/main/assets/index.html")
+          src = p.read_text()
+          anchor = "function renderApps(){\n  const a=S('ap_'+appKey)||[];"
+          if anchor not in src:
+              raise SystemExit("renderApps anchor missing")
+          replacement = """function renderApps(){
+            if(appKey==='maps' && !S('ap_maps')) S('ap_maps',[
+              {n:'Waze',p:'com.waze'},
+              {n:'دربونة',p:'iq.darbuna.app'}
+            ]);
+            const a=S('ap_'+appKey)||[];"""
+          src = src.replace(anchor, replacement, 1)
+          anchor = "a.forEach((x,i)=>it($('al'),x.n,()=>A.openApp(x.p),xb(()=>{"
+          if anchor not in src:
+              raise SystemExit("map app click anchor missing")
+          replacement = """a.forEach((x,i)=>it($('al'),x.n,()=>{
+              if(appKey==='maps' && A.openMapApp) {
+                const result=A.openMapApp(x.p);
+                if(result==='FAILED') alert('تعذّر فتح '+x.n+' على شاشة السيارة. تأكد أن التطبيق يدعم Android Auto ومثبت على الهاتف.');
+              } else A.openApp(x.p);
+            },xb(()=>{"""
+          src = src.replace(anchor, replacement, 1)
+          p.write_text(src)
+          PY
       - name: Build APK
         working-directory: extracted/car-screens-main
         run: gradle :app:assembleDebug
