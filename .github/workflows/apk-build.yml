@@ -766,31 +766,28 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           car_path = Path("app/src/main/java/com/carscreens/app/CarWebScreen.java")
           car = car_path.read_text()
 
-          def replace_once(source, old, new, label):
-              if old not in source:
-                  raise SystemExit("Missing patch anchor: " + label)
-              return source.replace(old, new, 1)
+          # Keep a live reference to the WebView/PlayerView bridge so calls from
+          # the phone-side HTML are routed back to the active car display.
+          if "private static volatile CarBridge activeBridge;" not in car:
+              anchor = "private int scrollX, scrollY;"
+              if anchor not in car: raise SystemExit("CarWebScreen fields missing")
+              car = car.replace(anchor, anchor + "\\n            private static volatile CarBridge activeBridge;", 1)
 
-          car = replace_once(
-              car,
-              "private int scrollX, scrollY;",
-              "private int scrollX, scrollY;\n            private static volatile CarBridge activeBridge;",
-              "active car bridge field"
-          )
-          car = replace_once(
-              car,
-              'web.addJavascriptInterface(new CarBridge(getCarContext(), web, main, playerView), "Android");',
-              'CarBridge bridge = new CarBridge(getCarContext(), web, main, playerView);\n                activeBridge = bridge;\n                web.addJavascriptInterface(bridge, "Android");',
-              "register active car bridge"
-          )
-          car = replace_once(
-              car,
-              "            private void detach() {",
-              """            static boolean openWebOnCar(String url) {
+          register_old = 'web.addJavascriptInterface(new CarBridge(getCarContext(), web, main, playerView), "Android");'
+          if "activeBridge = bridge;" not in car:
+              if register_old not in car: raise SystemExit("Car bridge registration missing")
+              car = car.replace(register_old,
+                  'CarBridge bridge = new CarBridge(getCarContext(), web, main, playerView);\\n                activeBridge = bridge;\\n                web.addJavascriptInterface(bridge, "Android");', 1)
+
+          if "static boolean openWebOnCar(String url)" not in car:
+              idx = car.find("private void detach() {")
+              if idx < 0: raise SystemExit("CarWebScreen detach method missing")
+              helpers = """static boolean openWebOnCar(String url) {
               CarBridge bridge = activeBridge;
               if (bridge == null) return false;
               bridge.openWebOnCar(url);
@@ -804,271 +801,86 @@ jobs:
               return true;
             }
 
-            private void detach() {
-              CarBridge oldBridge = activeBridge;
-              activeBridge = null;
-              if (oldBridge != null) oldBridge.release();""",
-              "active bridge routing and cleanup"
-          )
-          car = replace_once(
-              car,
-              """            @JavascriptInterface public void openWeb(String url) {
+            """
+              car = car[:idx] + helpers + car[idx:]
+
+          detach_anchor = "private void detach() {"
+          if "CarBridge oldBridge = activeBridge;" not in car:
+              car = car.replace(detach_anchor, detach_anchor + "\\n              CarBridge oldBridge = activeBridge;\\n              activeBridge = null;\\n              if (oldBridge != null) oldBridge.release();", 1)
+
+          # The WebView itself owns all web navigation on the car surface.
+          old_web = """@JavascriptInterface public void openWeb(String url) {
               web.post(() -> web.loadUrl(url));
-            }""",
-              """            void openWebOnCar(String url) {
+            }"""
+          new_web = """void openWebOnCar(String url) {
               main.post(() -> { try { if (web != null) web.loadUrl(url); } catch (Exception ignored) {} });
             }
             @JavascriptInterface public void openWeb(String url) {
               openWebOnCar(url);
-            }""",
-              "car web routing helper"
-          )
-          car = replace_once(
-              car,
-              """            @JavascriptInterface public void view(String uri, String mime) {""",
-              """            void release() {
+            }"""
+          if "void openWebOnCar(String url)" not in car:
+              if old_web not in car: raise SystemExit("CarBridge openWeb method missing")
+              car = car.replace(old_web, new_web, 1)
+
+          # Release the in-car player when the car surface is detached.
+          if "void release()" not in car:
+              marker = "@JavascriptInterface public void view(String uri, String mime) {"
+              release = """void release() {
               main.post(() -> {
                 try { if (carPlayer != null) { carPlayer.release(); carPlayer = null; } } catch (Exception ignored) {}
                 try { if (playerView != null) playerView.setPlayer(null); } catch (Exception ignored) {}
               });
             }
-            @JavascriptInterface public void view(String uri, String mime) {""",
-              "release car video player"
-          )
+            """
+              if marker not in car: raise SystemExit("CarBridge view method missing")
+              car = car.replace(marker, release + marker, 1)
 
-          # Keep the custom keyboard inside the car WebView and suppress the phone/system IME.
-          car = replace_once(
-              car,
-              "function activate(t){if(!t)return;active=t;kb.style.display='block';",
-              "function activate(t){if(!t)return;active=t;try{t.setAttribute('inputmode','none');}catch(e){}kb.style.display='block';",
-              "disable system keyboard on focused web fields"
-          )
-          car = replace_once(
-              car,
-              "['focusin','click','touchend','mousedown'].forEach(function(ev){",
-              "document.addEventListener('pointerdown',function(e){var t=fieldOf(e.target);if(t){try{t.setAttribute('inputmode','none');}catch(x){}}},true);document.querySelectorAll('input:not([type=password]):not([type=file]),textarea').forEach(function(t){try{t.setAttribute('inputmode','none');}catch(e){}});var mo=new MutationObserver(function(){document.querySelectorAll('input:not([type=password]):not([type=file]),textarea').forEach(function(t){try{t.setAttribute('inputmode','none');}catch(e){}});});mo.observe(document.documentElement,{childList:true,subtree:true});['focusin','click','touchend','mousedown'].forEach(function(ev){",
-              "suppress native IME before focus and for dynamic fields"
-          )
-          car_path.write_text(car)
+          # Never invoke a phone VideoActivity for IPTV/local video from the car.
+          for imp in [
+              "import android.view.inputmethod.EditorInfo;",
+              "import android.view.inputmethod.InputConnection;",
+              "import android.widget.Toast;",
+              "import androidx.media3.common.AudioAttributes;",
+              "import androidx.media3.common.C;",
+              "import androidx.media3.common.Player;",
+              "import androidx.media3.common.PlaybackException;",
+              "import androidx.media3.datasource.DefaultDataSource;",
+              "import androidx.media3.datasource.DefaultHttpDataSource;",
+              "import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;"
+          ]:
+              if imp not in car:
+                  car = car.replace("import android.view.Surface;", "import android.view.Surface;\\n" + imp, 1)
 
-          # Actions originating from the phone-side WebView are handed to the active car surface.
-          main_path = Path("app/src/main/java/com/carscreens/app/MainActivity.java")
-          main = main_path.read_text()
-          main = replace_once(
-              main,
-              """    @JavascriptInterface public void openWeb(String u) {
-              Intent i = new Intent(MainActivity.this, BrowserActivity.class);
-              i.putExtra("u", u);
-              startActivity(i);
-            }""",
-              """    @JavascriptInterface public void openWeb(String u) {
-              if (CarWebScreen.openWebOnCar(u)) return;
-              Intent i = new Intent(MainActivity.this, BrowserActivity.class);
-              i.putExtra("u", u);
-              startActivity(i);
-            }""",
-              "route browser requests to car"
-          )
-          main = replace_once(
-              main,
-              """    @JavascriptInterface public void playVideo(String u) {
-              Intent i = new Intent(MainActivity.this, VideoActivity.class);
-              i.putExtra("u", u);
-              startActivity(i);
-            }""",
-              """    @JavascriptInterface public void playVideo(String u) {
-              if (CarWebScreen.playVideoOnCar(u)) return;
-              Intent i = new Intent(MainActivity.this, VideoActivity.class);
-              i.putExtra("u", u);
-              startActivity(i);
-            }""",
-              "route video requests to car"
-          )
-          main_path.write_text(main)
-          PY
-
-      - name: Strengthen in-car IPTV playback and Arabic text input
-        working-directory: extracted/car-screens-main
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          p = Path("app/src/main/java/com/carscreens/app/CarWebScreen.java")
-          java = p.read_text()
-
-          def once(old, new, label):
-              global java
-              if old not in java:
-                  raise SystemExit("Missing patch anchor: " + label)
-              java = java.replace(old, new, 1)
-
-          # The custom in-car keyboard handles text entry; prevent Android from
-          # opening the phone's software keyboard over the car surface.
-          once("import android.view.Surface;",
-               "import android.view.Surface;\nimport android.view.inputmethod.EditorInfo;\nimport android.view.inputmethod.InputConnection;\nimport android.widget.Toast;\nimport androidx.media3.common.AudioAttributes;\nimport androidx.media3.common.C;\nimport androidx.media3.common.Player;\nimport androidx.media3.common.PlaybackException;\nimport androidx.media3.datasource.DefaultDataSource;\nimport androidx.media3.datasource.DefaultHttpDataSource;\nimport androidx.media3.exoplayer.source.DefaultMediaSourceFactory;",
-               "media and input imports")
-          once("web = new WebView(getCarContext());",
-               """web = new WebView(getCarContext()) {
+          # A custom Arabic/English keyboard is rendered in the car WebView.
+          if "onCheckIsTextEditor() { return false; }" not in car:
+              car = car.replace("web = new WebView(getCarContext());",
+                  """web = new WebView(getCarContext()) {
                   @Override public boolean onCheckIsTextEditor() { return false; }
                   @Override public InputConnection onCreateInputConnection(EditorInfo outAttrs) { return null; }
-                };""",
-               "disable system IME for car WebView")
+                };""", 1)
 
-          a = java.find("private void installCarKeyboard(WebView view) {")
-          b = java.find("\n            private void detach()", a)
-          if a < 0 or b < 0:
-              raise SystemExit("Car keyboard method boundaries missing")
-          keyboard = r'''private void installCarKeyboard(WebView view) {
-              String js = """
-              (function(){
-                if(window.__ameerCarKeyboardInstalled) return;
-                window.__ameerCarKeyboardInstalled = true;
-                var active=null, shift=false, symbols=false, language='ar';
-                var style=document.createElement('style');
-                style.textContent='#ameer-car-kb{position:fixed;z-index:2147483647;left:0;right:0;bottom:0;background:rgba(13,17,24,.98);padding:5px;display:none;max-height:52vh;overflow:auto;border-top:2px solid #4b8cff;font-family:Arial;direction:ltr}#ameer-car-kb .r{display:flex;gap:3px;margin:3px 0}#ameer-car-kb button{flex:1;min-width:0;height:36px;border:0;border-radius:6px;background:#343b49;color:#fff;font-size:16px;font-weight:bold;padding:0 2px}#ameer-car-kb button.a{background:#1769aa}';
-                document.head.appendChild(style);
-                var kb=document.createElement('div');kb.id='ameer-car-kb';
-                function fieldOf(n){
-                  while(n && n!==document){
-                    if(n.matches && n.matches('input:not([type=file]):not([type=hidden]):not([type=button]):not([type=submit]),textarea,[contenteditable=true],[role=textbox],[role=searchbox]')) return n;
-                    n=n.parentElement;
-                  }
-                  return null;
-                }
-                function fire(t,v){
-                  try { t.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:v})); }
-                  catch(e){ try{t.dispatchEvent(new Event('input',{bubbles:true}));}catch(x){} }
-                  try { t.dispatchEvent(new Event('change',{bubbles:true})); } catch(e){}
-                }
-                function put(v){
-                  if(!active)return;
-                  try{
-                    if(active.isContentEditable){document.execCommand('insertText',false,v);}
-                    else if(typeof active.setRangeText==='function' && active.selectionStart!=null){
-                      var a=active.selectionStart,b=active.selectionEnd;
-                      active.setRangeText(v,a,b,'end');fire(active,v);
-                    } else { active.value=(active.value||'')+v;fire(active,v); }
-                  }catch(e){}
-                  try{active.focus({preventScroll:true});}catch(e){try{active.focus();}catch(x){}}
-                }
-                function erase(){
-                  if(!active)return;
-                  try{
-                    if(active.isContentEditable){document.execCommand('delete',false,null);}
-                    else if(typeof active.setRangeText==='function' && active.selectionStart!=null){
-                      var a=active.selectionStart,b=active.selectionEnd;
-                      if(a===b && a>0)a--;
-                      active.setRangeText('',a,b,'end');fire(active,'');
-                    } else active.value=(active.value||'').slice(0,-1);
-                  }catch(e){}
-                  try{active.focus();}catch(e){}
-                }
-                function draw(){
-                  kb.innerHTML='';
-                  var rows;
-                  if(symbols){
-                    rows=[['1','2','3','4','5','6','7','8','9','0'],['@','#','        working-directory: extracted/car-screens-main
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          html = Path("app/src/main/assets/index.html").read_text()
-          scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
-          if not scripts:
-              raise SystemExit("No JavaScript found in index.html")
-          Path("/tmp/ameer-index-check.js").write_text("\n".join(scripts))
-          PY
-          node --check /tmp/ameer-index-check.js
+          car = car.replace("var active=null,shift=false,symbols=false;",
+                            "var active=null,shift=false,symbols=false,arabic=true;", 1)
+          old_rows = """function draw(){kb.innerHTML='';var rows=symbols?[['1','2','3','4','5','6','7','8','9','0'],['@','#','$','%','&','-','+','(',')','/'],['*',';','!', '?',':','_','.'],['ABC','⌫','مسافة','↵','لصق','إخفاء']]:[['1','2','3','4','5','6','7','8','9','0'],['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['⇧','z','x','c','v','b','n','m','⌫'],['?123','مسافة','-','_','.','@','↵','لصق','إخفاء']];"""
+          new_rows = """function draw(){kb.innerHTML='';var rows=symbols?[['1','2','3','4','5','6','7','8','9','0'],['@','#','$','%','&','-','+','(',')','/'],['*',';','!', '?',':','_','.'],['ABC','⌫','مسافة','↵','لصق','إخفاء']]:arabic?[['١','٢','٣','٤','٥','٦','٧','٨','٩','٠'],['ض','ص','ث','ق','ف','غ','ع','ه','خ','ح','ج'],['ش','س','ي','ب','ل','ا','ت','ن','م','ك'],['ئ','ء','ؤ','ر','لا','ى','ة','و','ز','ظ'],['EN','?123','مسافة','⌫','↵','لصق','إخفاء']]:[['1','2','3','4','5','6','7','8','9','0'],['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['⇧','z','x','c','v','b','n','m','⌫'],['عربي','?123','مسافة','-','_','.','@','↵','لصق','إخفاء']];"""
+          if old_rows in car: car = car.replace(old_rows, new_rows, 1)
+          click_old = "if(k==='⇧'){shift=!shift;draw();return;}if(k==='?123'||k==='ABC'){symbols=!symbols;draw();return;}"
+          click_new = "if(k==='عربي'){arabic=true;symbols=false;draw();return;}if(k==='EN'){arabic=false;symbols=false;draw();return;}if(k==='⇧'){shift=!shift;draw();return;}if(k==='?123'){symbols=true;draw();return;}if(k==='ABC'){symbols=false;draw();return;}"
+          if click_old in car: car = car.replace(click_old, click_new, 1)
+          car = car.replace("input:not([type=password]):not([type=file])",
+                            "input:not([type=file]):not([type=hidden])")
+          car = car.replace("input:not([type=password]):not([type=file]),textarea",
+                            "input:not([type=file]):not([type=hidden]),textarea")
+          if "document.addEventListener('pointerdown'" not in car:
+              car = car.replace("['focusin','click','touchend','mousedown'].forEach(function(ev){",
+                  "document.addEventListener('pointerdown',function(e){var t=fieldOf(e.target);if(t){try{t.setAttribute('inputmode','none');}catch(x){}}},true);['focusin','click','touchend','mousedown'].forEach(function(ev){", 1)
 
-      - name: Build APK
-        working-directory: extracted/car-screens-main
-        run: gradle :app:assembleDebug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Ameer-Screens-APK
-          path: extracted/car-screens-main/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-,'%','&','-','+','(',')','/'],['*',';',':','!','?','_','.','،','؟'],[language==='ar'?'عربي':'EN','ABC','مسافة','⌫','↵','إخفاء']];
-                  } else if(language==='ar'){
-                    rows=[['١','٢','٣','٤','٥','٦','٧','٨','٩','٠'],['ض','ص','ث','ق','ف','غ','ع','ه','خ','ح','ج'],['ش','س','ي','ب','ل','ا','ت','ن','م','ك'],['ئ','ء','ؤ','ر','لا','ى','ة','و','ز','ظ'],['EN','?123','مسافة','⌫','↵','لصق','إخفاء']];
-                  } else {
-                    rows=[['1','2','3','4','5','6','7','8','9','0'],['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['⇧','z','x','c','v','b','n','m','⌫'],['عربي','?123','مسافة','-','_','.','@','↵','لصق','إخفاء']];
-                  }
-                  rows.forEach(function(row){
-                    var r=document.createElement('div');r.className='r';
-                    row.forEach(function(k){
-                      var b=document.createElement('button');b.textContent=k;
-                      if(['لصق','إخفاء','↵'].includes(k))b.className='a';
-                      b.addEventListener('pointerdown',function(e){e.preventDefault();});
-                      b.addEventListener('click',function(){
-                        if(k==='إخفاء'){kb.style.display='none';return;}
-                        if(k==='عربي'){language='ar';symbols=false;draw();return;}
-                        if(k==='EN'){language='en';symbols=false;draw();return;}
-                        if(k==='?123'){symbols=true;draw();return;}
-                        if(k==='ABC'){symbols=false;draw();return;}
-                        if(k==='لصق'){
-                          try{var cm=window.Android&&Android.pasteClipboard?Android.pasteClipboard():'';if(cm)put(cm);}catch(e){}
-                          return;
-                        }
-                        if(k==='مسافة'){put(' ');return;}
-                        if(k==='↵'){
-                          if(active && active.tagName==='TEXTAREA')put('\n');
-                          else {try{active.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));active.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',bubbles:true}));}catch(e){}}
-                          return;
-                        }
-                        if(k==='⌫'){erase();return;}
-                        if(k==='⇧'){shift=!shift;draw();return;}
-                        put(shift?k.toUpperCase():k);if(shift){shift=false;draw();}
-                      });
-                      r.appendChild(b);
-                    });
-                    kb.appendChild(r);
-                  });
-                }
-                draw();document.body.appendChild(kb);
-                function activate(t){
-                  if(!t)return;active=t;
-                  try{t.setAttribute('inputmode','none');}catch(e){}
-                  kb.style.display='block';
-                  try{t.focus({preventScroll:true});}catch(e){try{t.focus();}catch(x){}}
-                  setTimeout(function(){try{t.scrollIntoView({block:'center'});}catch(e){}},60);
-                }
-                document.addEventListener('pointerdown',function(e){var t=fieldOf(e.target);if(t){try{t.setAttribute('inputmode','none');}catch(x){}}},true);
-                ['focusin','click','touchend','mousedown'].forEach(function(ev){
-                  document.addEventListener(ev,function(e){var t=fieldOf(e.target);if(t)activate(t);},true);
-                });
-                document.addEventListener('click',function(e){
-                  if(e.target&&e.target.closest&&e.target.closest('a'))kb.style.display='none';
-                },true);
-                function suppress(){
-                  document.querySelectorAll('input:not([type=file]):not([type=hidden]),textarea').forEach(function(t){try{t.setAttribute('inputmode','none');}catch(e){}});
-                }
-                suppress();
-                new MutationObserver(suppress).observe(document.documentElement,{childList:true,subtree:true});
-              })();
-              """;
-              view.evaluateJavascript(js, null);
-            }'''
-          java = java[:a] + keyboard + java[b:]
-
-          # Replace the player with a single Media3 pipeline that handles local
-          # files, progressive streams and HLS without opening a phone Activity.
-          old = """@JavascriptInterface public void playVideo(String url) {
-              main.post(() -> {
-                try {
-                  if (carPlayer == null) carPlayer = new ExoPlayer.Builder(context).build();
-                  playerView.setPlayer(carPlayer);
-                  web.setVisibility(View.GONE);
-                  playerView.setVisibility(View.VISIBLE);
-                  carPlayer.setMediaItem(MediaItem.fromUri(Uri.parse(url)));
-                  carPlayer.prepare();
-                  carPlayer.play();
-                } catch (Exception e) { Log.e("AmeerCarWeb", "In-car playback failed", e); }
-              });
-            }"""
-          new = """@JavascriptInterface public void playVideo(String url) {
+          # Use Media3's HTTP data source for HLS, TS/MP4, and redirected IPTV URLs.
+          play_start = car.find("@JavascriptInterface public void playVideo(String url) {")
+          hide_start = car.find("@JavascriptInterface public void hidePlayer()", play_start)
+          if play_start < 0 or hide_start < 0:
+              raise SystemExit("Car native video bridge methods missing")
+          play_method = """@JavascriptInterface public void playVideo(String url) {
               if (url == null || url.trim().isEmpty()) return;
               final String mediaUrl = url.trim();
               main.post(() -> {
@@ -1103,16 +915,17 @@ jobs:
                   Toast.makeText(context, "تعذّر تشغيل الفيديو على شاشة السيارة", Toast.LENGTH_LONG).show();
                 }
               });
-            }"""
-          if old not in java:
-              raise SystemExit("In-car player replacement anchor missing")
-          java = java.replace(old, new, 1)
+            }
+            """
+          car = car[:play_start] + play_method + car[hide_start:]
 
-          copy_marker = """@JavascriptInterface public void copy(String value) {
+          # Add clipboard paste support to the custom keyboard.
+          if "pasteClipboard()" not in car:
+              copy = """@JavascriptInterface public void copy(String value) {
               ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
               cm.setPrimaryClip(ClipData.newPlainText("Ameer Screens", value));
             }"""
-          paste = copy_marker + """
+              paste = copy + """
             @JavascriptInterface public String pasteClipboard() {
               try {
                 ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
@@ -1121,30 +934,57 @@ jobs:
               } catch (Exception ignored) {}
               return "";
             }"""
-          once(copy_marker, paste, "clipboard paste bridge")
+              if copy not in car: raise SystemExit("CarBridge clipboard method missing")
+              car = car.replace(copy, paste, 1)
 
-          p.write_text(java)
+          if "media3-exoplayer-rtsp" not in Path("app/build.gradle").read_text():
+              gp = Path("app/build.gradle")
+              g = gp.read_text()
+              anchor = "implementation 'androidx.media3:media3-exoplayer-hls:1.4.1'"
+              if anchor in g:
+                  gp.write_text(g.replace(anchor, anchor + "\\n    implementation 'androidx.media3:media3-exoplayer-rtsp:1.4.1'", 1))
 
-          # Enable RTSP streams in addition to HLS and ordinary MP4/TS streams.
-          g = Path("app/build.gradle")
-          gradle = g.read_text()
-          hls = "implementation 'androidx.media3:media3-exoplayer-hls:1.4.1'"
-          if hls in gradle and "media3-exoplayer-rtsp" not in gradle:
-              gradle = gradle.replace(hls, hls + "\n    implementation 'androidx.media3:media3-exoplayer-rtsp:1.4.1'", 1)
-          g.write_text(gradle)
+          car_path.write_text(car)
 
-          # Fail the build if the required in-car route or keyboard was not installed.
-          checks = [
-              "onCheckIsTextEditor() { return false; }",
-              "private void installCarKeyboard(WebView view)",
-              "language==='ar'",
-              "pasteClipboard()",
-              "new ExoPlayer.Builder(context).setMediaSourceFactory(sources).build()",
-              "playerView.setVisibility(View.VISIBLE)"
-          ]
-          for item in checks:
-              if item not in java:
-                  raise SystemExit("Post-patch verification failed: " + item)
+          # Route browser/video requests originating from the phone-side WebView
+          # to the active car surface instead of always opening phone Activities.
+          main_path = Path("app/src/main/java/com/carscreens/app/MainActivity.java")
+          main = main_path.read_text()
+          old_open = """    @JavascriptInterface public void openWeb(String u) {
+              Intent i = new Intent(MainActivity.this, BrowserActivity.class);
+              i.putExtra("u", u);
+              startActivity(i);
+            }"""
+          new_open = """    @JavascriptInterface public void openWeb(String u) {
+              if (CarWebScreen.openWebOnCar(u)) return;
+              Intent i = new Intent(MainActivity.this, BrowserActivity.class);
+              i.putExtra("u", u);
+              startActivity(i);
+            }"""
+          if "CarWebScreen.openWebOnCar(u)" not in main:
+              if old_open not in main: raise SystemExit("MainActivity openWeb bridge missing")
+              main = main.replace(old_open, new_open, 1)
+          old_play = """    @JavascriptInterface public void playVideo(String u) {
+              Intent i = new Intent(MainActivity.this, VideoActivity.class);
+              i.putExtra("u", u);
+              startActivity(i);
+            }"""
+          new_play = """    @JavascriptInterface public void playVideo(String u) {
+              if (CarWebScreen.playVideoOnCar(u)) return;
+              Intent i = new Intent(MainActivity.this, VideoActivity.class);
+              i.putExtra("u", u);
+              startActivity(i);
+            }"""
+          if "CarWebScreen.playVideoOnCar(u)" not in main:
+              if old_play not in main: raise SystemExit("MainActivity playVideo bridge missing")
+              main = main.replace(old_play, new_play, 1)
+          main_path.write_text(main)
+
+          # Guard the two required behaviors at build time.
+          for token in ["openWebOnCar(String url)", "playVideoOnCar(String url)",
+                        "onCheckIsTextEditor() { return false; }", "language==='ar'",
+                        "pasteClipboard()", "DefaultMediaSourceFactory sources"]:
+              if token not in car: raise SystemExit("Car behavior check failed: " + token)
           PY
 
       - name: Validate original interface JavaScript
