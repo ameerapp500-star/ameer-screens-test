@@ -456,40 +456,7 @@ jobs:
           patch("app/src/main/java/com/carscreens/app/CarWebScreen.java", [
               ('import android.provider.MediaStore;','import android.provider.MediaStore;\n          import android.provider.DocumentsContract;','documents contract import'),
               ('Action.BACK','new Action.Builder().setTitle("رجوع").setOnClickListener(() -> { if (web != null) web.evaluateJavascript("carBack()", null); }).build()','custom back action'),
-              ('''@JavascriptInterface public String listDir(String tree, String doc) { return "[]"; }''',
-               '''@JavascriptInterface public String listDir(String tree, String doc) {
-              JSONArray out = new JSONArray();
-              Cursor c = null;
-              try {
-                Uri treeUri = Uri.parse(tree);
-                String documentId = (doc == null || doc.length() == 0)
-                    ? DocumentsContract.getTreeDocumentId(treeUri) : doc;
-                Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId);
-                c = context.getContentResolver().query(children,
-                    new String[]{DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-                      DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-                      DocumentsContract.Document.COLUMN_MIME_TYPE},
-                    null, null, null);
-                if (c != null) {
-                  while (c.moveToNext()) {
-                    String id = c.getString(0);
-                    String mime = c.getString(2);
-                    JSONObject item = new JSONObject();
-                    item.put("id", id);
-                    item.put("n", c.getString(1));
-                    item.put("m", mime);
-                    item.put("d", DocumentsContract.Document.MIME_TYPE_DIR.equals(mime));
-                    item.put("u", DocumentsContract.buildDocumentUriUsingTree(treeUri, id).toString());
-                    out.put(item);
-                  }
-                }
-              } catch (Exception e) {
-                Log.e("AmeerCarWeb", "Unable to list selected folder", e);
-              } finally {
-                if (c != null) c.close();
-              }
-              return out.toString();
-            }''','real SAF directory listing')          ])
+          ])
           patch("app/src/main/assets/index.html", [              ("""function fshow(){FP=[];renderFiles()}""",
                """function fshow(){FP=[];renderFiles()}\nsetInterval(()=>{if(cur==='files'&&!FP.length)renderFiles()},1500)""",
                'refresh saved folders after picker'),
