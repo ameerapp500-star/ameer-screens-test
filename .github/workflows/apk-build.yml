@@ -447,8 +447,7 @@ jobs:
               }
               return out.toString();
             }''','real SAF directory listing')
-          ])
-          patch("app/src/main/assets/index.html", [
+          ])          patch("app/src/main/assets/index.html", [
               ("""function fshow(){FP=[];renderFiles()}""",
                """function fshow(){FP=[];renderFiles()}\nsetInterval(()=>{if(cur==='files'&&!FP.length)renderFiles()},1500)""",
                'refresh saved folders after picker'),
@@ -897,8 +896,7 @@ jobs:
                   playerView.setKeepContentOnPlayerReset(true);
                   playerView.setPlayer(carPlayer);
                   carPlayer.setAudioAttributes(new AudioAttributes.Builder()                      .setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true);
-                  carPlayer.addListener(new Player.Listener() {
-                    @Override public void onPlayerError(PlaybackException error) {
+                  carPlayer.addListener(new Player.Listener() {                    @Override public void onPlayerError(PlaybackException error) {
                       Toast.makeText(context, "تعذّر تشغيل القناة أو الفيديو: " + error.getErrorCodeName(), Toast.LENGTH_LONG).show();
                       Log.e("AmeerCarWeb", "Media3 playback error", error);
                     }
@@ -1057,7 +1055,7 @@ jobs:
 
           # Poll the shared command queue and insert text into the active website field,
           # submit a website search, or navigate the car WebView to a supplied URL.
-          js_anchor = '+ "document.addEventListener(\\'click\\',function(e){if(e.target&&e.target.closest&&e.target.closest(\\'a\\'))kb.style.display=\\'none\\';},true);"\n'
+          js_anchor = """+ "document.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('a'))kb.style.display='none';},true);"\n"""
           if "Android.pollRemoteCommand" not in car:
               remote_js = """if(window.Android&&Android.pollRemoteCommand&&!window.__ameerRemotePoll){window.__ameerRemotePoll=true;setInterval(function(){try{var raw=Android.pollRemoteCommand();if(!raw)return;var c=JSON.parse(raw);if(c.type==='url'){window.location.href=c.value;return;}var t=active||fieldOf(document.activeElement);if(!t){var list=document.querySelectorAll('input:not([type=hidden]):not([type=file]),textarea,[contenteditable=true],[role=textbox],[role=searchbox]');for(var i=0;i<list.length;i++){if(list[i].getClientRects().length){t=list[i];break;}}}if(c.type==='search'){if(t){active=t;put(c.value);try{var f=t.form||(t.closest?t.closest('form'):null);if(f){if(f.requestSubmit)f.requestSubmit();else f.submit();}else t.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true}));}catch(e){}}else{window.location.href='https://www.google.com/search?q='+encodeURIComponent(c.value);}return;}if(t){active=t;put(c.value);}else{window.location.href='https://www.google.com/search?q='+encodeURIComponent(c.value);}}catch(e){}},450);}"""
               if js_anchor not in car:
