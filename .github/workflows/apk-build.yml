@@ -761,6 +761,132 @@ jobs:
           java_path.write_text(java)
           PY
 
+      - name: Route web and video actions to the active car display and stabilize text entry
+        working-directory: extracted/car-screens-main
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          car_path = Path("app/src/main/java/com/carscreens/app/CarWebScreen.java")
+          car = car_path.read_text()
+
+          def replace_once(source, old, new, label):
+              if old not in source:
+                  raise SystemExit("Missing patch anchor: " + label)
+              return source.replace(old, new, 1)
+
+          car = replace_once(
+              car,
+              "private int scrollX, scrollY;",
+              "private int scrollX, scrollY;\n            private static volatile CarBridge activeBridge;",
+              "active car bridge field"
+          )
+          car = replace_once(
+              car,
+              'web.addJavascriptInterface(new CarBridge(getCarContext(), web, main, playerView), "Android");',
+              'CarBridge bridge = new CarBridge(getCarContext(), web, main, playerView);\n                activeBridge = bridge;\n                web.addJavascriptInterface(bridge, "Android");',
+              "register active car bridge"
+          )
+          car = replace_once(
+              car,
+              "            private void detach() {",
+              """            static boolean openWebOnCar(String url) {
+              CarBridge bridge = activeBridge;
+              if (bridge == null) return false;
+              bridge.openWebOnCar(url);
+              return true;
+            }
+
+            static boolean playVideoOnCar(String url) {
+              CarBridge bridge = activeBridge;
+              if (bridge == null) return false;
+              bridge.playVideo(url);
+              return true;
+            }
+
+            private void detach() {
+              CarBridge oldBridge = activeBridge;
+              activeBridge = null;
+              if (oldBridge != null) oldBridge.release();""",
+              "active bridge routing and cleanup"
+          )
+          car = replace_once(
+              car,
+              """            @JavascriptInterface public void openWeb(String url) {
+              web.post(() -> web.loadUrl(url));
+            }""",
+              """            void openWebOnCar(String url) {
+              main.post(() -> { try { if (web != null) web.loadUrl(url); } catch (Exception ignored) {} });
+            }
+            @JavascriptInterface public void openWeb(String url) {
+              openWebOnCar(url);
+            }""",
+              "car web routing helper"
+          )
+          car = replace_once(
+              car,
+              """            @JavascriptInterface public void view(String uri, String mime) {""",
+              """            void release() {
+              main.post(() -> {
+                try { if (carPlayer != null) { carPlayer.release(); carPlayer = null; } } catch (Exception ignored) {}
+                try { if (playerView != null) playerView.setPlayer(null); } catch (Exception ignored) {}
+              });
+            }
+            @JavascriptInterface public void view(String uri, String mime) {""",
+              "release car video player"
+          )
+
+          # Keep the custom keyboard inside the car WebView and suppress the phone/system IME.
+          car = replace_once(
+              car,
+              "function activate(t){if(!t)return;active=t;kb.style.display='block';",
+              "function activate(t){if(!t)return;active=t;try{t.setAttribute('inputmode','none');}catch(e){}kb.style.display='block';",
+              "disable system keyboard on focused web fields"
+          )
+          car = replace_once(
+              car,
+              "['focusin','click','touchend','mousedown'].forEach(function(ev){",
+              "document.addEventListener('pointerdown',function(e){var t=fieldOf(e.target);if(t){try{t.setAttribute('inputmode','none');}catch(x){}}},true);document.querySelectorAll('input:not([type=password]):not([type=file]),textarea').forEach(function(t){try{t.setAttribute('inputmode','none');}catch(e){}});var mo=new MutationObserver(function(){document.querySelectorAll('input:not([type=password]):not([type=file]),textarea').forEach(function(t){try{t.setAttribute('inputmode','none');}catch(e){}});});mo.observe(document.documentElement,{childList:true,subtree:true});['focusin','click','touchend','mousedown'].forEach(function(ev){",
+              "suppress native IME before focus and for dynamic fields"
+          )
+          car_path.write_text(car)
+
+          # Actions originating from the phone-side WebView are handed to the active car surface.
+          main_path = Path("app/src/main/java/com/carscreens/app/MainActivity.java")
+          main = main_path.read_text()
+          main = replace_once(
+              main,
+              """    @JavascriptInterface public void openWeb(String u) {
+              Intent i = new Intent(MainActivity.this, BrowserActivity.class);
+              i.putExtra("u", u);
+              startActivity(i);
+            }""",
+              """    @JavascriptInterface public void openWeb(String u) {
+              if (CarWebScreen.openWebOnCar(u)) return;
+              Intent i = new Intent(MainActivity.this, BrowserActivity.class);
+              i.putExtra("u", u);
+              startActivity(i);
+            }""",
+              "route browser requests to car"
+          )
+          main = replace_once(
+              main,
+              """    @JavascriptInterface public void playVideo(String u) {
+              Intent i = new Intent(MainActivity.this, VideoActivity.class);
+              i.putExtra("u", u);
+              startActivity(i);
+            }""",
+              """    @JavascriptInterface public void playVideo(String u) {
+              if (CarWebScreen.playVideoOnCar(u)) return;
+              Intent i = new Intent(MainActivity.this, VideoActivity.class);
+              i.putExtra("u", u);
+              startActivity(i);
+            }""",
+              "route video requests to car"
+          )
+          main_path.write_text(main)
+          PY
+
       - name: Validate original interface JavaScript
         working-directory: extracted/car-screens-main
         run: |
