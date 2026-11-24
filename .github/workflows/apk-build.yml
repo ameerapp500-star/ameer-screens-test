@@ -489,26 +489,6 @@ jobs:
           gradle.write_text(gradle_text)
 
 
-          # Remove the maps tile and its dedicated web shortcut from the interface.
-          html = re.sub(r"\['maps','الخرائط',[^\n]*\],?\n", "", html)
-          html = re.sub(r'\s*<div id="mapsweb"[^>]*>.*?</div>\s*', '\n', html, flags=re.S)
-          html = html.replace("let cur='',appKey='maps',tvMode='live';", "let cur='',appKey='apps',tvMode='live';")
-          html = html.replace("if(k==='maps'||k==='apps')", "if(k==='apps')")
-          html = html.replace("show('apps',t[1]);$('mapsweb').style.display=k==='maps'?'block':'none';renderApps();return", "show('apps',t[1]);renderApps();return")
-          html = html.replace("if(appKey==='maps' && A.saveMapApps) A.saveMapApps(JSON.stringify(a));", "")
-          html = html.replace("if(appKey==='maps' && A.saveMapApps)A.saveMapApps(JSON.stringify(a));", "")
-          a = html.find("function renderApps(){")
-          b = html.find("function pickApp()", a)
-          if a < 0 or b < 0:
-              raise SystemExit("renderApps bounds missing")
-          html = html[:a] + """function renderApps(){
-            const a=S('ap_'+appKey)||[];
-            $('al').innerHTML='';
-            a.forEach((x,i)=>it($('al'),x.n,()=>A.openApp(x.p),xb(()=>{a.splice(i,1);S('ap_'+appKey,a);renderApps()})));
-            $('ap2').innerHTML='';
-          }
-          """ + html[b:]
-
           # Play videos inside the same WebView surface, not in a phone Activity.
           a = html.find("function player(box,u,m){")
           b = html.find("\nfunction loadMedia()", a)
