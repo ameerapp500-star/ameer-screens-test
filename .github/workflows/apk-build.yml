@@ -1441,22 +1441,23 @@ jobs:
           path.write_text(source)
           print("Patched only AutoService.onLoadChildren: root is immediate; child errors are logged.")
 
-          # Preserve the media entry that made Fix4 visible in Android Auto.
+          # Route Android Auto to the Car App Library UI, not the legacy MediaBrowser UI.
+          # The media declaration made Gearhead bind AutoService/MediaCarAppService;
+          # the app's full interface is provided by MapsCarAppService (template route).
           desc_path = Path("app/src/main/res/xml/automotive_app_desc.xml")
           desc = desc_path.read_text()
-          if 'name="media"' not in desc:
-              if "</automotiveApp>" not in desc:
-                  raise SystemExit("automotive_app_desc.xml closing tag missing")
-              desc = desc.replace(
-                  "</automotiveApp>",
-                  '    <uses name="media" />\n</automotiveApp>',
-                  1
-              )
-              desc_path.write_text(desc)
-          final_desc = desc_path.read_text()
-          if 'name="template"' not in final_desc or 'name="media"' not in final_desc:
-              raise SystemExit("Android Auto template/media metadata validation failed")
-          print("Verified both template and media metadata are present.")
+          desc = desc.replace('    <uses name="media" />\\n', '')
+          desc = desc.replace('    <uses name="media"/>\\n', '')
+          desc = desc.replace('    <uses name="media" />', '')
+          if 'name="template"' not in desc:
+              raise SystemExit("Car App template metadata is missing")
+          if 'name="media"' in desc:
+              raise SystemExit("Legacy media route still declared; refusing to build")
+          manifest = Path("app/src/main/AndroidManifest.xml").read_text()
+          if 'androidx.car.app.CarAppService' not in manifest or 'androidx.car.app.category.NAVIGATION' not in manifest:
+              raise SystemExit("Navigation CarAppService declaration missing")
+          desc_path.write_text(desc)
+          print("Verified template-only metadata and Navigation CarAppService route.")
           PY
 
       - name: Build APK
