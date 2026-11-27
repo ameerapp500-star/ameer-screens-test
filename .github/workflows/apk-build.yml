@@ -1440,6 +1440,23 @@ jobs:
           source = source[:start] + method + source[end:]
           path.write_text(source)
           print("Patched only AutoService.onLoadChildren: root is immediate; child errors are logged.")
+
+          # Preserve the media entry that made Fix4 visible in Android Auto.
+          desc_path = Path("app/src/main/res/xml/automotive_app_desc.xml")
+          desc = desc_path.read_text()
+          if 'name="media"' not in desc:
+              if "</automotiveApp>" not in desc:
+                  raise SystemExit("automotive_app_desc.xml closing tag missing")
+              desc = desc.replace(
+                  "</automotiveApp>",
+                  '    <uses name="media" />\n</automotiveApp>',
+                  1
+              )
+              desc_path.write_text(desc)
+          final_desc = desc_path.read_text()
+          if 'name="template"' not in final_desc or 'name="media"' not in final_desc:
+              raise SystemExit("Android Auto template/media metadata validation failed")
+          print("Verified both template and media metadata are present.")
           PY
 
       - name: Build APK
