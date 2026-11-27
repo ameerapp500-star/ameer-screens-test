@@ -1405,6 +1405,43 @@ jobs:
           PY
           node --check /tmp/ameer-index-check.js
 
+      - name: Make Android Auto media root respond immediately
+        working-directory: extracted/car-screens-main
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("app/src/main/java/com/carscreens/app/AutoService.java")
+          source = path.read_text()
+          start = source.index("@Override public void onLoadChildren")
+          end = source.index("@Override public void onDestroy", start)
+          method = source[start:end]
+
+          old = "    res.detach();"
+          new = """    if ("root".equals(pid)) {
+              List<MediaBrowser.MediaItem> root = new ArrayList<MediaBrowser.MediaItem>();
+              int browsable = MediaBrowser.MediaItem.FLAG_BROWSABLE;
+              root.add(item("radio", "الراديو", browsable));
+              root.add(item("music", "الموسيقى", browsable));
+              res.sendResult(root);
+              return;
+          }
+          res.detach();"""
+          if old not in method:
+              raise SystemExit("AutoService detach anchor missing; no APK will be built")
+          method = method.replace(old, new, 1)
+
+          old_catch = "} catch (Exception e) {}"
+          new_catch = '} catch (Exception e) { android.util.Log.e("AmeerAutoService", "Failed to load children: " + pid, e); }'
+          if old_catch not in method:
+              raise SystemExit("AutoService error handler anchor missing; no APK will be built")
+          method = method.replace(old_catch, new_catch, 1)
+
+          source = source[:start] + method + source[end:]
+          path.write_text(source)
+          print("Patched only AutoService.onLoadChildren: root is immediate; child errors are logged.")
+          PY
+
       - name: Build APK
         working-directory: extracted/car-screens-main
         run: gradle :app:assembleDebug
